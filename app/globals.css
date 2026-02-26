@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;600&display=swap');
+
+@layer base {
+  html {
+    font-family: 'Open Sans', sans-serif;
+    color: #1A1A2E;
+  }
+
+  h1 {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    color: #1A2B4D;
+  }
+
+  h2 {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 600;
+    color: #2E5C9E;
+  }
+
+  h3 {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 500;
+    color: #1A2B4D;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-gold text-white font-montserrat font-bold rounded-lg px-6 py-3 hover:bg-gold-hover shadow-md transition-all duration-200;
+  }
+
+  .btn-secondary {
+    @apply bg-transparent border-2 border-medium-blue text-medium-blue rounded-lg px-6 py-3 hover:bg-medium-blue hover:text-white font-montserrat font-semibold transition-all duration-200;
+  }
+
+  .btn-ghost {
+    @apply text-medium-blue hover:underline font-montserrat transition-all duration-200;
+  }
+
+  .card {
+    @apply bg-white rounded-lg shadow-sm border border-gray-100 p-6 md:p-8 hover:shadow-md transition-shadow duration-200;
+  }
+
+  .input-field {
+    @apply bg-pale-blue border border-gray-200 rounded-lg px-4 py-3 text-dark-text font-opensans focus:border-medium-blue focus:ring-2 focus:ring-medium-blue/20 focus:outline-none placeholder:text-gray-400 w-full transition-all duration-200;
+  }
+
+  .stat-number {
+    @apply font-montserrat font-bold text-3xl md:text-4xl;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F8F9FB;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #C4C4C4;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}
+
+/* Loading spinner animation */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+/* Success checkmark animation */
+@keyframes checkmark {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.success-check {
+  animation: checkmark 0.5s ease-in-out forwards;
+}
