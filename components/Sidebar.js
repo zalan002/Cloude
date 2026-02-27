@@ -46,7 +46,7 @@ const navItems = [
 
 const adminItems = [
   {
-    label: 'MiniCRM Szinkron',
+    label: 'Projekt Szinkron',
     href: '/admin/sync',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

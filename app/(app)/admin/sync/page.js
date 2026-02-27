@@ -11,10 +11,10 @@ export default function AdminSyncPage() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [systemId, setSystemId] = useState('');
-  const [categoryId, setCategoryId] = useState('');
   const [message, setMessage] = useState(null);
   const [projects, setProjects] = useState([]);
+  const [searchFilter, setSearchFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   useEffect(() => {
     async function init() {
@@ -56,24 +56,13 @@ export default function AdminSyncPage() {
   }, [profile, loadProjects]);
 
   const handleSync = async () => {
-    if (!systemId.trim()) {
-      setMessage({ type: 'error', text: 'Add meg a MiniCRM System ID-t!' });
-      return;
-    }
-
     setSyncing(true);
     setMessage(null);
 
     try {
-      const body = { systemId: systemId.trim() };
-      if (categoryId.trim()) {
-        body.categoryId = parseInt(categoryId.trim());
-      }
-
-      const res = await fetch('/api/minicrm/sync', {
+      const res = await fetch('/api/projects/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
       });
 
       const data = await res.json();
@@ -83,17 +72,11 @@ export default function AdminSyncPage() {
         return;
       }
 
-      if (data.categories) {
-        setMessage({
-          type: 'info',
-          text: `Elérhető kategóriák: ${JSON.stringify(data.categories, null, 2)}`,
-        });
-        return;
-      }
-
       setMessage({
         type: 'success',
-        text: `Sikeres szinkronizálás! ${data.synced} projekt szinkronizálva (${data.total_found} talált).`,
+        text: `Sikeres szinkronizálás! ${data.synced} projekt szinkronizálva.\n` +
+          `Értékesítés: ${data.sales_count} db | Partnerek: ${data.partner_count} db\n` +
+          `Duplikáció szűrve: ${data.duplicates_removed} db | Összesen: ${data.total_found} egyedi projekt`,
       });
       loadProjects();
     } catch {
@@ -101,29 +84,6 @@ export default function AdminSyncPage() {
     } finally {
       setSyncing(false);
     }
-  };
-
-  const handleManualAdd = async () => {
-    const name = prompt('Projekt neve:');
-    if (!name) return;
-    const minicrmId = prompt('MiniCRM ID (szám):');
-    if (!minicrmId || isNaN(parseInt(minicrmId))) {
-      alert('Érvényes MiniCRM ID szükséges.');
-      return;
-    }
-
-    const { error } = await supabase.from('minicrm_projects').insert({
-      minicrm_id: parseInt(minicrmId),
-      name,
-      status: 'active',
-    });
-
-    if (error) {
-      alert('Hiba: ' + error.message);
-      return;
-    }
-
-    loadProjects();
   };
 
   const toggleStatus = async (project) => {
@@ -134,6 +94,17 @@ export default function AdminSyncPage() {
       .eq('id', project.id);
     loadProjects();
   };
+
+  const filteredProjects = projects.filter((p) => {
+    const matchesSearch = searchFilter
+      ? p.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
+        (p.category_name && p.category_name.toLowerCase().includes(searchFilter.toLowerCase()))
+      : true;
+    const matchesStatus =
+      statusFilter === 'all' ||
+      p.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   if (loading) {
     return (
@@ -153,45 +124,29 @@ export default function AdminSyncPage() {
   return (
     <div>
       <h1 className="text-2xl md:text-3xl font-montserrat font-bold text-deep-blue mb-6">
-        MiniCRM Szinkronizálás
+        Projekt Szinkronizálás
       </h1>
 
-      {/* Sync form */}
+      {/* Sync card */}
       <div className="card mb-6">
-        <h3 className="text-lg font-montserrat font-semibold text-deep-blue mb-4">
-          Projektek szinkronizálása
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-semibold text-dark-text mb-2">
-              MiniCRM System ID <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={systemId}
-              onChange={(e) => setSystemId(e.target.value)}
-              placeholder="pl. 12345"
-              className="input-field"
-            />
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 bg-medium-blue/10 rounded-full flex items-center justify-center flex-shrink-0">
+            <svg className="w-6 h-6 text-medium-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+            </svg>
           </div>
-          <div>
-            <label className="block text-sm font-semibold text-dark-text mb-2">
-              Kategória ID{' '}
-              <span className="text-mid-gray font-normal">(opcionális)</span>
-            </label>
-            <input
-              type="text"
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              placeholder="Üresen hagyva: kategóriák listázása"
-              className="input-field"
-            />
-          </div>
-          <div className="flex items-end">
+          <div className="flex-1">
+            <h3 className="text-lg font-montserrat font-semibold text-deep-blue mb-1">
+              Google Sheets adatforrás
+            </h3>
+            <p className="text-sm text-mid-gray mb-4">
+              A projektek automatikusan letöltődnek a közzétett Google Sheets dokumentumból.
+              Az értékesítési és partner projektek deduplikálva kerülnek importálásra.
+            </p>
             <button
               onClick={handleSync}
               disabled={syncing}
-              className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50"
+              className="btn-primary flex items-center gap-2 disabled:opacity-50"
             >
               {syncing ? (
                 <>
@@ -199,14 +154,14 @@ export default function AdminSyncPage() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  Szinkronizálás...
+                  Szinkronizálás folyamatban...
                 </>
               ) : (
                 <>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M21.015 4.356v4.992" />
                   </svg>
-                  Szinkronizálás
+                  Szinkronizálás indítása
                 </>
               )}
             </button>
@@ -215,7 +170,7 @@ export default function AdminSyncPage() {
 
         {message && (
           <div
-            className={`px-4 py-3 rounded-lg text-sm ${
+            className={`mt-4 px-4 py-3 rounded-lg text-sm ${
               message.type === 'success'
                 ? 'bg-green-50 border border-green-200 text-green-700'
                 : message.type === 'error'
@@ -230,18 +185,44 @@ export default function AdminSyncPage() {
 
       {/* Project list */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
           <h3 className="text-lg font-montserrat font-semibold text-deep-blue">
-            Szinkronizált projektek ({projects.length})
+            Projektek ({filteredProjects.length} / {projects.length})
           </h3>
-          <button onClick={handleManualAdd} className="btn-secondary text-sm !px-4 !py-2">
-            + Manuális hozzáadás
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+            {/* Search */}
+            <div className="relative flex-1 md:w-64">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="w-4 h-4 text-mid-gray" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                placeholder="Keresés..."
+                className="input-field !pl-9 !py-2 text-sm"
+              />
+            </div>
+            {/* Status filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="input-field !py-2 text-sm !w-auto"
+            >
+              <option value="all">Mind</option>
+              <option value="active">Aktív</option>
+              <option value="archived">Archivált</option>
+            </select>
+          </div>
         </div>
 
-        {projects.length === 0 ? (
+        {filteredProjects.length === 0 ? (
           <p className="text-center text-mid-gray py-8">
-            Még nincsenek szinkronizált projektek.
+            {projects.length === 0
+              ? 'Még nincsenek szinkronizált projektek. Kattints a fenti gombra az indításhoz!'
+              : 'Nincs találat a szűrési feltételekre.'}
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -252,7 +233,7 @@ export default function AdminSyncPage() {
                     Projekt neve
                   </th>
                   <th className="pb-3 text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider">
-                    MiniCRM ID
+                    Kategória
                   </th>
                   <th className="pb-3 text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider">
                     Utolsó szinkron
@@ -263,16 +244,18 @@ export default function AdminSyncPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {projects.map((p) => (
+                {filteredProjects.map((p) => (
                   <tr key={p.id} className="hover:bg-pale-blue/50">
                     <td className="py-3 text-sm font-opensans text-dark-text">
                       {p.name}
                     </td>
                     <td className="py-3 text-sm font-opensans text-mid-gray">
-                      {p.minicrm_id}
+                      {p.category_name || '-'}
                     </td>
                     <td className="py-3 text-sm font-opensans text-mid-gray">
-                      {new Date(p.last_synced_at).toLocaleString('hu-HU')}
+                      {p.last_synced_at
+                        ? new Date(p.last_synced_at).toLocaleString('hu-HU')
+                        : '-'}
                     </td>
                     <td className="py-3">
                       <button

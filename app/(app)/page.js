@@ -154,7 +154,7 @@ export default async function DashboardPage() {
           <p className="text-mid-gray mb-4">Még nincsenek projektek szinkronizálva.</p>
           {profile?.role === 'admin' && (
             <Link href="/admin/sync" className="btn-primary inline-block">
-              Szinkronizálás a MiniCRM-ből
+              Projektek szinkronizálása
             </Link>
           )}
         </div>

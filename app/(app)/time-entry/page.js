@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import ProjectSelector from '@/components/ProjectSelector';
 
 export default function TimeEntryPage() {
   const router = useRouter();
@@ -119,25 +120,16 @@ export default function TimeEntryPage() {
           {/* Project select */}
           <div>
             <label
-              htmlFor="project"
               className="block text-sm font-semibold text-dark-text mb-2"
             >
               Projekt <span className="text-red-500">*</span>
             </label>
-            <select
-              id="project"
+            <ProjectSelector
+              projects={projects}
               value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
+              onChange={setProjectId}
               required
-              className="input-field"
-            >
-              <option value="">Válassz projektet...</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} (MiniCRM: {p.minicrm_id})
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           {/* Date input */}
