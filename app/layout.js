@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'CONSORTIO WorkTime - Munkaidő Nyilvántartó',
-  description: 'Consortio Zrt. munkaidő nyilvántartó rendszer',
+  title: 'CONSORTIO Munkaidő nyilvántartó',
+  description: 'Training Hungary Kft. munkaidő nyilvántartó rendszer',
 };
 
 export default function RootLayout({ children }) {

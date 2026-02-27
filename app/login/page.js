@@ -46,7 +46,7 @@ export default function LoginPage() {
             CONSORTIO
           </h1>
           <p className="text-xl font-montserrat font-light text-white/70 mt-1">
-            WorkTime
+            Munkaidő nyilvántartó
           </p>
         </div>
 
@@ -139,7 +139,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-white/40 text-xs mt-6">
-          &copy; {new Date().getFullYear()} Consortio Zrt. Minden jog fenntartva.
+          &copy; {new Date().getFullYear()} Training Hungary Kft. Minden jog fenntartva.
         </p>
       </div>
     </div>

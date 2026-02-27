@@ -126,23 +126,15 @@ export default function AdminUsersPage() {
         <h3 className="text-sm font-montserrat font-semibold text-medium-blue mb-2">
           Új felhasználó hozzáadása
         </h3>
-        <ol className="text-sm text-dark-text space-y-1 list-decimal list-inside">
-          <li>
-            Nyisd meg a{' '}
-            <span className="font-semibold">Supabase Dashboard</span>{' '}
-            &rarr; Authentication &rarr; Users menüpontot
-          </li>
-          <li>
-            Kattints az &quot;Add user&quot; &rarr; &quot;Create new user&quot; gombra
-          </li>
-          <li>
-            Add meg az email címet, jelszót, és a User Metadata mezőbe írd:{' '}
-            <code className="bg-white px-2 py-0.5 rounded text-xs">
-              {`{"full_name": "Név", "role": "employee"}`}
-            </code>
-          </li>
-          <li>A profil automatikusan létrejön a trigger segítségével</li>
-        </ol>
+        <p className="text-sm text-dark-text">
+          Új felhasználó létrehozásához kérjük, lépjen kapcsolatba velünk az alábbi email címen:{' '}
+          <a
+            href="mailto:Support@traininghungary.com"
+            className="font-semibold text-medium-blue hover:underline"
+          >
+            Support@traininghungary.com
+          </a>
+        </p>
       </div>
 
       {/* Users table - desktop */}

@@ -105,7 +105,7 @@ export default function Sidebar({ profile }) {
           CONSORTIO
         </h1>
         <p className="text-sm font-montserrat font-light text-white/60">
-          WorkTime
+          Munkaidő nyilvántartó
         </p>
       </div>
 
