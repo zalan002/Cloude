@@ -62,6 +62,15 @@ export default async function DashboardPage() {
     (weekProjects || []).map((e) => e.project_id)
   ).size;
 
+  const formatTime = (hours) => {
+    const totalMinutes = Math.round(hours * 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    if (h === 0) return `${m} perc`;
+    if (m === 0) return `${h} óra`;
+    return `${h}ó ${m}p`;
+  };
+
   const firstName = profile?.full_name?.split(' ')[0] || 'Felhasználó';
   const todayFormatted = new Date().toLocaleDateString('hu-HU', {
     year: 'numeric',
@@ -85,8 +94,8 @@ export default async function DashboardPage() {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-mid-gray font-opensans mb-1">Mai órák</p>
-              <p className="stat-number text-gold">{todayHours.toFixed(1)}</p>
+              <p className="text-sm text-mid-gray font-opensans mb-1">Mai idő</p>
+              <p className="stat-number text-gold">{formatTime(todayHours)}</p>
             </div>
             <div className="w-12 h-12 bg-gold/10 rounded-full flex items-center justify-center">
               <svg className="w-6 h-6 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -100,7 +109,7 @@ export default async function DashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-mid-gray font-opensans mb-1">Heti összesen</p>
-              <p className="stat-number text-medium-blue">{weeklyHours.toFixed(1)}</p>
+              <p className="stat-number text-medium-blue">{formatTime(weeklyHours)}</p>
             </div>
             <div className="w-12 h-12 bg-medium-blue/10 rounded-full flex items-center justify-center">
               <svg className="w-6 h-6 text-medium-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -183,10 +192,9 @@ export default async function DashboardPage() {
                   )}
                 </div>
                 <div className="ml-4 flex-shrink-0">
-                  <span className="font-montserrat font-bold text-medium-blue text-lg">
-                    {Number(entry.hours).toFixed(1)}
+                  <span className="font-montserrat font-bold text-medium-blue">
+                    {formatTime(Number(entry.hours))}
                   </span>
-                  <span className="text-sm text-mid-gray ml-1">óra</span>
                 </div>
               </div>
             ))}

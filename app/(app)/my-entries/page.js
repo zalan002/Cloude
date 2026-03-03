@@ -75,6 +75,15 @@ export default function MyEntriesPage() {
     return dayEntries.reduce((sum, e) => sum + Number(e.hours), 0);
   };
 
+  const formatTime = (hours) => {
+    const totalMinutes = Math.round(hours * 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    if (h === 0) return `${m} perc`;
+    if (m === 0) return `${h} óra`;
+    return `${h} óra ${m} perc`;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -147,7 +156,7 @@ export default function MyEntriesPage() {
                   {formatDate(date)}
                 </h3>
                 <span className="text-sm font-montserrat font-bold text-medium-blue bg-medium-blue/10 px-3 py-1 rounded-full">
-                  {getDayTotal(dayEntries).toFixed(1)} óra
+                  {formatTime(getDayTotal(dayEntries))}
                 </span>
               </div>
 
@@ -170,7 +179,7 @@ export default function MyEntriesPage() {
                     </div>
                     <div className="flex items-center gap-4 flex-shrink-0">
                       <span className="font-montserrat font-bold text-medium-blue">
-                        {Number(entry.hours).toFixed(1)} óra
+                        {formatTime(Number(entry.hours))}
                       </span>
                       <button
                         onClick={() => handleDelete(entry.id)}

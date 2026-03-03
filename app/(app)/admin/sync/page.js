@@ -15,6 +15,8 @@ export default function AdminSyncPage() {
   const [projects, setProjects] = useState([]);
   const [searchFilter, setSearchFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
 
   useEffect(() => {
     async function init() {
@@ -92,6 +94,37 @@ export default function AdminSyncPage() {
       .from('minicrm_projects')
       .update({ status: newStatus })
       .eq('id', project.id);
+    loadProjects();
+  };
+
+  const handleManualAdd = async (e) => {
+    e.preventDefault();
+    const name = newProjectName.trim();
+    if (!name) return;
+
+    const minicrm_id = Math.abs(
+      Array.from(name.toLowerCase()).reduce(
+        (hash, char) => ((hash << 5) - hash + char.charCodeAt(0)) & 0x7fffffff,
+        0
+      )
+    );
+
+    const { error } = await supabase.from('minicrm_projects').insert({
+      minicrm_id,
+      name,
+      category_name: 'Manuális',
+      status: 'active',
+      last_synced_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      setMessage({ type: 'error', text: 'Hiba: ' + error.message });
+      return;
+    }
+
+    setNewProjectName('');
+    setShowAddForm(false);
+    setMessage({ type: 'success', text: `"${name}" projekt sikeresen hozzáadva!` });
     loadProjects();
   };
 
@@ -180,6 +213,54 @@ export default function AdminSyncPage() {
           >
             <pre className="whitespace-pre-wrap font-opensans">{message.text}</pre>
           </div>
+        )}
+      </div>
+
+      {/* Manual add */}
+      <div className="card mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-lg font-montserrat font-semibold text-deep-blue">
+            Manuális projekt hozzáadás
+          </h3>
+          {!showAddForm && (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="btn-secondary text-sm !px-4 !py-2 flex items-center gap-1"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Új projekt
+            </button>
+          )}
+        </div>
+        {showAddForm && (
+          <form onSubmit={handleManualAdd} className="flex gap-2 mt-3">
+            <input
+              type="text"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              placeholder="Projekt neve..."
+              required
+              className="input-field flex-1"
+              autoFocus
+            />
+            <button type="submit" className="btn-primary !py-2 !px-4 text-sm">
+              Hozzáadás
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowAddForm(false); setNewProjectName(''); }}
+              className="btn-secondary !py-2 !px-4 text-sm"
+            >
+              Mégse
+            </button>
+          </form>
+        )}
+        {!showAddForm && (
+          <p className="text-sm text-mid-gray">
+            Ha egy projekt nem szerepel a Google Sheets-ben, itt manuálisan is hozzáadhatod.
+          </p>
         )}
       </div>
 
