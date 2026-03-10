@@ -11,7 +11,9 @@ export default function TimeEntryPage() {
   const supabase = createClient();
 
   const [projects, setProjects] = useState([]);
+  const [tasks, setTasks] = useState([]);
   const [projectId, setProjectId] = useState('');
+  const [taskId, setTaskId] = useState('');
   const [entryDate, setEntryDate] = useState(
     new Date().toISOString().split('T')[0]
   );
@@ -22,20 +24,28 @@ export default function TimeEntryPage() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    async function loadProjects() {
-      const { data } = await supabase
-        .from('minicrm_projects')
-        .select('*')
-        .eq('status', 'active')
-        .order('name');
-      setProjects(data || []);
+    async function loadData() {
+      const [projectsRes, tasksRes] = await Promise.all([
+        supabase
+          .from('minicrm_projects')
+          .select('*')
+          .eq('status', 'active')
+          .order('name'),
+        supabase
+          .from('tasks')
+          .select('*')
+          .eq('status', 'active')
+          .order('name'),
+      ]);
+      setProjects(projectsRes.data || []);
+      setTasks(tasksRes.data || []);
 
       const preselected = searchParams.get('project');
       if (preselected) {
         setProjectId(preselected);
       }
     }
-    loadProjects();
+    loadData();
   }, []);
 
   const handleSubmit = async (e) => {
@@ -53,15 +63,21 @@ export default function TimeEntryPage() {
         return;
       }
 
+      const insertData = {
+        user_id: user.id,
+        project_id: parseInt(projectId),
+        entry_date: entryDate,
+        hours: parseInt(minutes) / 60,
+        description: description.trim() || null,
+      };
+
+      if (taskId) {
+        insertData.task_id = parseInt(taskId);
+      }
+
       const { error: insertError } = await supabase
         .from('time_entries')
-        .insert({
-          user_id: user.id,
-          project_id: parseInt(projectId),
-          entry_date: entryDate,
-          hours: parseInt(minutes) / 60,
-          description: description.trim() || null,
-        });
+        .insert(insertData);
 
       if (insertError) {
         setError('Hiba a mentés során: ' + insertError.message);
@@ -132,6 +148,30 @@ export default function TimeEntryPage() {
             />
           </div>
 
+          {/* Task select */}
+          <div>
+            <label
+              htmlFor="task"
+              className="block text-sm font-semibold text-dark-text mb-2"
+            >
+              Feladat <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="task"
+              value={taskId}
+              onChange={(e) => setTaskId(e.target.value)}
+              required
+              className="input-field"
+            >
+              <option value="">Válassz feladatot...</option>
+              {tasks.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Date input */}
           <div>
             <label
@@ -161,8 +201,8 @@ export default function TimeEntryPage() {
             <input
               id="minutes"
               type="number"
-              step="5"
-              min="5"
+              step="1"
+              min="1"
               max="1440"
               value={minutes}
               onChange={(e) => setMinutes(e.target.value)}
@@ -170,7 +210,7 @@ export default function TimeEntryPage() {
               required
               className="input-field"
             />
-            {minutes && parseInt(minutes) >= 5 && (
+            {minutes && parseInt(minutes) >= 1 && (
               <p className="text-xs text-mid-gray mt-1">
                 = {Math.floor(parseInt(minutes) / 60)} óra {parseInt(minutes) % 60} perc
               </p>
