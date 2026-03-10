@@ -15,7 +15,7 @@ export default function TimeEntryPage() {
   const [entryDate, setEntryDate] = useState(
     new Date().toISOString().split('T')[0]
   );
-  const [hours, setHours] = useState('');
+  const [minutes, setMinutes] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -59,7 +59,7 @@ export default function TimeEntryPage() {
           user_id: user.id,
           project_id: parseInt(projectId),
           entry_date: entryDate,
-          hours: parseFloat(hours),
+          hours: parseInt(minutes) / 60,
           description: description.trim() || null,
         });
 
@@ -150,26 +150,31 @@ export default function TimeEntryPage() {
             />
           </div>
 
-          {/* Hours input */}
+          {/* Minutes input */}
           <div>
             <label
-              htmlFor="hours"
+              htmlFor="minutes"
               className="block text-sm font-semibold text-dark-text mb-2"
             >
-              Óraszám <span className="text-red-500">*</span>
+              Időtartam (perc) <span className="text-red-500">*</span>
             </label>
             <input
-              id="hours"
+              id="minutes"
               type="number"
-              step="0.5"
-              min="0.5"
-              max="24"
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-              placeholder="pl. 4.5"
+              step="5"
+              min="5"
+              max="1440"
+              value={minutes}
+              onChange={(e) => setMinutes(e.target.value)}
+              placeholder="pl. 30"
               required
               className="input-field"
             />
+            {minutes && parseInt(minutes) >= 5 && (
+              <p className="text-xs text-mid-gray mt-1">
+                = {Math.floor(parseInt(minutes) / 60)} óra {parseInt(minutes) % 60} perc
+              </p>
+            )}
           </div>
 
           {/* Description */}
