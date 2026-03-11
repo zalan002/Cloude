@@ -104,11 +104,15 @@ export default function ReportsPage() {
   // Project state
   const [projectData, setProjectData] = useState([]);
   const [projectUserFilter, setProjectUserFilter] = useState('all');
+  const [projectDateFrom, setProjectDateFrom] = useState('');
+  const [projectDateTo, setProjectDateTo] = useState('');
   const [expandedProjects, setExpandedProjects] = useState([]);
 
   // Task state
   const [taskData, setTaskData] = useState([]);
   const [taskUserFilter, setTaskUserFilter] = useState('all');
+  const [taskDateFrom, setTaskDateFrom] = useState('');
+  const [taskDateTo, setTaskDateTo] = useState('');
   const [expandedTasks, setExpandedTasks] = useState([]);
 
   // Weekly state
@@ -216,6 +220,9 @@ export default function ReportsPage() {
       query = query.eq('user_id', projectUserFilter);
     }
 
+    if (projectDateFrom) query = query.gte('entry_date', projectDateFrom);
+    if (projectDateTo) query = query.lte('entry_date', projectDateTo);
+
     const { data } = await query;
 
     const projectMap = {};
@@ -250,7 +257,7 @@ export default function ReportsPage() {
 
     setProjectData(result);
     setExpandedProjects([]);
-  }, [profile, projectUserFilter]);
+  }, [profile, projectUserFilter, projectDateFrom, projectDateTo]);
 
   // Load task data
   const loadTasks = useCallback(async () => {
@@ -265,6 +272,9 @@ export default function ReportsPage() {
     } else if (taskUserFilter !== 'all') {
       query = query.eq('user_id', taskUserFilter);
     }
+
+    if (taskDateFrom) query = query.gte('entry_date', taskDateFrom);
+    if (taskDateTo) query = query.lte('entry_date', taskDateTo);
 
     const { data } = await query;
 
@@ -301,7 +311,7 @@ export default function ReportsPage() {
 
     setTaskData(result);
     setExpandedTasks([]);
-  }, [profile, taskUserFilter]);
+  }, [profile, taskUserFilter, taskDateFrom, taskDateTo]);
 
   // Load weekly data
   const loadWeekly = useCallback(async () => {
@@ -446,21 +456,50 @@ export default function ReportsPage() {
       {/* Projects tab */}
       {activeTab === 'projects' && (
         <div className="card">
-          {profile?.role === 'admin' && users.length > 0 && (
-            <div className="flex items-center gap-4 mb-6">
-              <label className="text-sm font-semibold text-dark-text">Szűrés személy szerint:</label>
-              <select
-                value={projectUserFilter}
-                onChange={(e) => setProjectUserFilter(e.target.value)}
-                className="input-field !w-auto"
-              >
-                <option value="all">Mindenki</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>{u.full_name}</option>
-                ))}
-              </select>
+          <div className="flex flex-col md:flex-row items-start md:items-end gap-4 mb-6">
+            {profile?.role === 'admin' && users.length > 0 && (
+              <div>
+                <label className="text-xs font-semibold text-mid-gray uppercase tracking-wider block mb-1">Személy</label>
+                <select
+                  value={projectUserFilter}
+                  onChange={(e) => setProjectUserFilter(e.target.value)}
+                  className="input-field !w-auto !py-2 text-sm"
+                >
+                  <option value="all">Mindenki</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>{u.full_name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="text-xs font-semibold text-mid-gray uppercase tracking-wider block mb-1">Dátum -tól</label>
+              <input
+                type="date"
+                value={projectDateFrom}
+                onChange={(e) => setProjectDateFrom(e.target.value)}
+                className="input-field !w-auto !py-2 text-sm"
+              />
             </div>
-          )}
+            <div>
+              <label className="text-xs font-semibold text-mid-gray uppercase tracking-wider block mb-1">Dátum -ig</label>
+              <input
+                type="date"
+                value={projectDateTo}
+                onChange={(e) => setProjectDateTo(e.target.value)}
+                className="input-field !w-auto !py-2 text-sm"
+              />
+            </div>
+            {(projectDateFrom || projectDateTo) && (
+              <button
+                type="button"
+                onClick={() => { setProjectDateFrom(''); setProjectDateTo(''); }}
+                className="text-xs text-red-500 hover:text-red-700 font-semibold py-2"
+              >
+                Szűrő törlése
+              </button>
+            )}
+          </div>
 
           {projectData.length === 0 ? (
             <p className="text-center text-mid-gray py-8">Nincsenek projekt adatok.</p>
@@ -503,21 +542,50 @@ export default function ReportsPage() {
       {/* Tasks tab */}
       {activeTab === 'tasks' && (
         <div className="card">
-          {profile?.role === 'admin' && users.length > 0 && (
-            <div className="flex items-center gap-4 mb-6">
-              <label className="text-sm font-semibold text-dark-text">Szűrés személy szerint:</label>
-              <select
-                value={taskUserFilter}
-                onChange={(e) => setTaskUserFilter(e.target.value)}
-                className="input-field !w-auto"
-              >
-                <option value="all">Mindenki</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>{u.full_name}</option>
-                ))}
-              </select>
+          <div className="flex flex-col md:flex-row items-start md:items-end gap-4 mb-6">
+            {profile?.role === 'admin' && users.length > 0 && (
+              <div>
+                <label className="text-xs font-semibold text-mid-gray uppercase tracking-wider block mb-1">Személy</label>
+                <select
+                  value={taskUserFilter}
+                  onChange={(e) => setTaskUserFilter(e.target.value)}
+                  className="input-field !w-auto !py-2 text-sm"
+                >
+                  <option value="all">Mindenki</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>{u.full_name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="text-xs font-semibold text-mid-gray uppercase tracking-wider block mb-1">Dátum -tól</label>
+              <input
+                type="date"
+                value={taskDateFrom}
+                onChange={(e) => setTaskDateFrom(e.target.value)}
+                className="input-field !w-auto !py-2 text-sm"
+              />
             </div>
-          )}
+            <div>
+              <label className="text-xs font-semibold text-mid-gray uppercase tracking-wider block mb-1">Dátum -ig</label>
+              <input
+                type="date"
+                value={taskDateTo}
+                onChange={(e) => setTaskDateTo(e.target.value)}
+                className="input-field !w-auto !py-2 text-sm"
+              />
+            </div>
+            {(taskDateFrom || taskDateTo) && (
+              <button
+                type="button"
+                onClick={() => { setTaskDateFrom(''); setTaskDateTo(''); }}
+                className="text-xs text-red-500 hover:text-red-700 font-semibold py-2"
+              >
+                Szűrő törlése
+              </button>
+            )}
+          </div>
 
           {taskData.length === 0 ? (
             <p className="text-center text-mid-gray py-8">Nincsenek feladat adatok.</p>

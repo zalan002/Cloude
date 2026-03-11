@@ -113,11 +113,27 @@ export default function AdminTasksPage() {
 
   const handleDelete = async (task) => {
     if (!confirm(`Biztosan törölni szeretnéd a "${task.name}" feladatot?`)) return;
-    const { error } = await supabase.from('tasks').delete().eq('id', task.id);
-    if (error) {
-      setMessage({ type: 'error', text: 'Hiba: ' + error.message });
+
+    // First check if task is used in time entries
+    const { count } = await supabase
+      .from('time_entries')
+      .select('id', { count: 'exact', head: true })
+      .eq('task_id', task.id);
+
+    if (count && count > 0) {
+      setMessage({
+        type: 'error',
+        text: `A "${task.name}" feladat nem törölhető, mert ${count} időbejegyzésben szerepel. Archiváld helyette!`,
+      });
       return;
     }
+
+    const { error } = await supabase.from('tasks').delete().eq('id', task.id);
+    if (error) {
+      setMessage({ type: 'error', text: 'Hiba a törlés során: ' + error.message });
+      return;
+    }
+    setMessage({ type: 'success', text: `"${task.name}" feladat sikeresen törölve!` });
     loadTasks();
   };
 
