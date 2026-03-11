@@ -4,6 +4,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
+const CATEGORIES = [
+  'ÉRTÉKESÍTÉS',
+  'JOG',
+  'ASSZISZTENCIA',
+  'KÖNYVELÉS',
+  'MUNKAÜGY',
+];
+
 export default function AdminTasksPage() {
   const supabase = createClient();
   const router = useRouter();
@@ -13,9 +21,11 @@ export default function AdminTasksPage() {
   const [tasks, setTasks] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
+  const [newTaskCategory, setNewTaskCategory] = useState('');
   const [message, setMessage] = useState(null);
   const [searchFilter, setSearchFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
 
   useEffect(() => {
     async function init() {
@@ -48,6 +58,7 @@ export default function AdminTasksPage() {
     const { data } = await supabase
       .from('tasks')
       .select('*')
+      .order('category')
       .order('name');
     setTasks(data || []);
   }, []);
@@ -61,10 +72,15 @@ export default function AdminTasksPage() {
     const name = newTaskName.trim();
     if (!name) return;
 
-    const { error } = await supabase.from('tasks').insert({
+    const insertData = {
       name,
       status: 'active',
-    });
+    };
+    if (newTaskCategory) {
+      insertData.category = newTaskCategory;
+    }
+
+    const { error } = await supabase.from('tasks').insert(insertData);
 
     if (error) {
       setMessage({ type: 'error', text: 'Hiba: ' + error.message });
@@ -72,6 +88,7 @@ export default function AdminTasksPage() {
     }
 
     setNewTaskName('');
+    setNewTaskCategory('');
     setShowAddForm(false);
     setMessage({ type: 'success', text: `"${name}" feladat sikeresen hozzáadva!` });
     loadTasks();
@@ -86,6 +103,14 @@ export default function AdminTasksPage() {
     loadTasks();
   };
 
+  const updateCategory = async (task, category) => {
+    await supabase
+      .from('tasks')
+      .update({ category: category || null })
+      .eq('id', task.id);
+    loadTasks();
+  };
+
   const handleDelete = async (task) => {
     if (!confirm(`Biztosan törölni szeretnéd a "${task.name}" feladatot?`)) return;
     const { error } = await supabase.from('tasks').delete().eq('id', task.id);
@@ -96,12 +121,19 @@ export default function AdminTasksPage() {
     loadTasks();
   };
 
+  // Get unique categories from tasks
+  const existingCategories = [...new Set(tasks.map((t) => t.category).filter(Boolean))];
+
   const filteredTasks = tasks.filter((t) => {
     const matchesSearch = searchFilter
-      ? t.name.toLowerCase().includes(searchFilter.toLowerCase())
+      ? t.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
+        (t.category && t.category.toLowerCase().includes(searchFilter.toLowerCase()))
       : true;
     const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesCategory =
+      categoryFilter === 'all' ||
+      (categoryFilter === 'none' ? !t.category : t.category === categoryFilter);
+    return matchesSearch && matchesStatus && matchesCategory;
   });
 
   if (loading) {
@@ -152,26 +184,40 @@ export default function AdminTasksPage() {
           )}
         </div>
         {showAddForm ? (
-          <form onSubmit={handleAdd} className="flex gap-2 mt-3">
-            <input
-              type="text"
-              value={newTaskName}
-              onChange={(e) => setNewTaskName(e.target.value)}
-              placeholder="Feladat neve..."
-              required
-              className="input-field flex-1"
-              autoFocus
-            />
-            <button type="submit" className="btn-primary !py-2 !px-4 text-sm">
-              Hozzáadás
-            </button>
-            <button
-              type="button"
-              onClick={() => { setShowAddForm(false); setNewTaskName(''); }}
-              className="btn-secondary !py-2 !px-4 text-sm"
-            >
-              Mégse
-            </button>
+          <form onSubmit={handleAdd} className="space-y-3 mt-3">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                value={newTaskName}
+                onChange={(e) => setNewTaskName(e.target.value)}
+                placeholder="Feladat neve..."
+                required
+                className="input-field flex-1"
+                autoFocus
+              />
+              <select
+                value={newTaskCategory}
+                onChange={(e) => setNewTaskCategory(e.target.value)}
+                className="input-field !w-auto"
+              >
+                <option value="">Kategória (opcionális)</option>
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <button type="submit" className="btn-primary !py-2 !px-4 text-sm">
+                Hozzáadás
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowAddForm(false); setNewTaskName(''); setNewTaskCategory(''); }}
+                className="btn-secondary !py-2 !px-4 text-sm"
+              >
+                Mégse
+              </button>
+            </div>
           </form>
         ) : (
           <p className="text-sm text-mid-gray">
@@ -202,6 +248,17 @@ export default function AdminTasksPage() {
               />
             </div>
             <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="input-field !py-2 text-sm !w-auto"
+            >
+              <option value="all">Minden kategória</option>
+              <option value="none">Kategória nélkül</option>
+              {existingCategories.sort().map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="input-field !py-2 text-sm !w-auto"
@@ -228,7 +285,7 @@ export default function AdminTasksPage() {
                     Feladat neve
                   </th>
                   <th className="pb-3 text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider">
-                    Létrehozva
+                    Kategória
                   </th>
                   <th className="pb-3 text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider">
                     Státusz
@@ -244,10 +301,17 @@ export default function AdminTasksPage() {
                     <td className="py-3 text-sm font-opensans text-dark-text">
                       {t.name}
                     </td>
-                    <td className="py-3 text-sm font-opensans text-mid-gray">
-                      {t.created_at
-                        ? new Date(t.created_at).toLocaleDateString('hu-HU')
-                        : '-'}
+                    <td className="py-3">
+                      <select
+                        value={t.category || ''}
+                        onChange={(e) => updateCategory(t, e.target.value)}
+                        className="text-xs font-montserrat font-semibold px-2 py-1 rounded-lg border border-gray-200 bg-white text-dark-text focus:outline-none focus:ring-1 focus:ring-medium-blue"
+                      >
+                        <option value="">— Nincs —</option>
+                        {CATEGORIES.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
                     </td>
                     <td className="py-3">
                       <button

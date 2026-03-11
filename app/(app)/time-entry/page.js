@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import ProjectSelector from '@/components/ProjectSelector';
+import TaskSelector from '@/components/TaskSelector';
 
 export default function TimeEntryPage() {
   const router = useRouter();
@@ -151,25 +152,16 @@ export default function TimeEntryPage() {
           {/* Task select */}
           <div>
             <label
-              htmlFor="task"
               className="block text-sm font-semibold text-dark-text mb-2"
             >
               Feladat <span className="text-red-500">*</span>
             </label>
-            <select
-              id="task"
+            <TaskSelector
+              tasks={tasks}
               value={taskId}
-              onChange={(e) => setTaskId(e.target.value)}
+              onChange={setTaskId}
               required
-              className="input-field"
-            >
-              <option value="">Válassz feladatot...</option>
-              {tasks.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           {/* Date input */}
