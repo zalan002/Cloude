@@ -2,8 +2,9 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { syncProjects } from '@/app/api/projects/sync/route';
 
+export const dynamic = 'force-dynamic';
+
 // Vercel Cron calls this endpoint
-// Configure in vercel.json: { "crons": [{ "path": "/api/cron/sync-projects", "schedule": "0 6 * * *" }] }
 export async function GET(request) {
   try {
     // Verify cron secret to prevent unauthorized access
