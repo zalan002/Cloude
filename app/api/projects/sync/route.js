@@ -33,9 +33,7 @@ function parseCSV(text) {
   const lines = text.split('\n');
   if (lines.length < 2) return [];
 
-  // Parse header
   const headers = parseCSVLine(lines[0]);
-
   const rows = [];
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -47,7 +45,7 @@ function parseCSV(text) {
     });
     rows.push(row);
   }
-  return rows;
+  return { headers: headers.map((h) => h.trim()), rows };
 }
 
 function parseCSVLine(line) {
@@ -83,60 +81,44 @@ function parseCSVLine(line) {
   return result;
 }
 
-function findNameColumn(headers) {
-  const nameCandidates = [
-    'Name', 'name', 'Név', 'név', 'ProjectName', 'Projektnév',
-    'Projekt neve', 'Cégnév', 'Cég neve', 'Cég', 'Projekt',
-    'Kapcsolattartó', 'Partner', 'Ügyfél',
-  ];
-  for (const candidate of nameCandidates) {
+function findColumn(headers, candidates, fuzzyTerms) {
+  for (const candidate of candidates) {
     const found = headers.find(
-      (h) => h.trim().toLowerCase() === candidate.toLowerCase()
+      (h) => h.toLowerCase() === candidate.toLowerCase()
     );
     if (found) return found;
   }
-  // Fallback: look for any header containing "név" or "name"
-  const fuzzy = headers.find(
-    (h) =>
-      h.toLowerCase().includes('név') ||
-      h.toLowerCase().includes('name') ||
-      h.toLowerCase().includes('projekt') ||
-      h.toLowerCase().includes('cég')
-  );
-  if (fuzzy) return fuzzy;
-  // Last resort: use the first column
-  return headers[0];
+  if (fuzzyTerms) {
+    const fuzzy = headers.find((h) =>
+      fuzzyTerms.some((term) => h.toLowerCase().includes(term))
+    );
+    if (fuzzy) return fuzzy;
+  }
+  return null;
+}
+
+function findNameColumn(headers) {
+  return findColumn(
+    headers,
+    ['Name', 'name', 'Név', 'név', 'ProjectName', 'Projektnév', 'Projekt neve', 'Cégnév', 'Cég neve', 'Cég', 'Projekt', 'Kapcsolattartó', 'Partner', 'Ügyfél'],
+    ['név', 'name', 'projekt', 'cég']
+  ) || headers[0];
 }
 
 function findIdColumn(headers) {
-  const idCandidates = [
-    'Id', 'id', 'ID', 'Azonosító', 'azonosító', 'MiniCRM ID',
-    'ProjectId', 'Projekt ID',
-  ];
-  for (const candidate of idCandidates) {
-    const found = headers.find(
-      (h) => h.trim().toLowerCase() === candidate.toLowerCase()
-    );
-    if (found) return found;
-  }
-  const fuzzy = headers.find(
-    (h) => h.toLowerCase().includes('id') || h.toLowerCase().includes('azonosító')
+  return findColumn(
+    headers,
+    ['Id', 'id', 'ID', 'Azonosító', 'azonosító', 'MiniCRM ID', 'ProjectId', 'Projekt ID'],
+    ['id', 'azonosító']
   );
-  return fuzzy || null;
 }
 
 function findCategoryColumn(headers) {
-  const candidates = [
-    'Category', 'Kategória', 'kategória', 'CategoryName',
-    'Státusz', 'Status', 'Típus', 'Type',
-  ];
-  for (const candidate of candidates) {
-    const found = headers.find(
-      (h) => h.trim().toLowerCase() === candidate.toLowerCase()
-    );
-    if (found) return found;
-  }
-  return null;
+  return findColumn(
+    headers,
+    ['Category', 'Kategória', 'kategória', 'CategoryName', 'StatusGroup', 'Státusz', 'Status', 'Típus', 'Type'],
+    null
+  );
 }
 
 async function fetchCSV(url) {
@@ -151,6 +133,167 @@ async function fetchCSV(url) {
 
   const text = await response.text();
   return parseCSV(text);
+}
+
+// Simple hash for generating numeric ID from name
+function hashName(name) {
+  let hash = 0;
+  const str = name.trim().toLowerCase();
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
+}
+
+// Core sync logic - used by both manual trigger and cron
+export async function syncProjects(supabase) {
+  const [salesResult, partnerResult] = await Promise.all([
+    fetchCSV(CSV_URLS.sales),
+    fetchCSV(CSV_URLS.partners),
+  ]);
+
+  const salesRows = salesResult.rows;
+  const salesHeaders = salesResult.headers;
+  const partnerRows = partnerResult.rows;
+  const partnerHeaders = partnerResult.headers;
+
+  // Process sales data
+  const salesProjects = [];
+  if (salesRows.length > 0) {
+    const nameCol = findNameColumn(salesHeaders);
+    const idCol = findIdColumn(salesHeaders);
+    const catCol = findCategoryColumn(salesHeaders);
+
+    salesRows.forEach((row) => {
+      const name = row[nameCol];
+      if (!name) return;
+
+      // Build raw_data with all CSV fields
+      const rawData = {};
+      salesHeaders.forEach((h) => {
+        if (row[h]) rawData[h] = row[h];
+      });
+
+      salesProjects.push({
+        name: name.trim(),
+        source_id: idCol ? row[idCol] : null,
+        category: catCol ? row[catCol] : 'Értékesítés',
+        source: 'minicrm_sales',
+        raw_data: rawData,
+      });
+    });
+  }
+
+  // Process partner data
+  const partnerProjects = [];
+  if (partnerRows.length > 0) {
+    const nameCol = findNameColumn(partnerHeaders);
+    const idCol = findIdColumn(partnerHeaders);
+    const catCol = findCategoryColumn(partnerHeaders);
+
+    partnerRows.forEach((row) => {
+      const name = row[nameCol];
+      if (!name) return;
+
+      const rawData = {};
+      partnerHeaders.forEach((h) => {
+        if (row[h]) rawData[h] = row[h];
+      });
+
+      partnerProjects.push({
+        name: name.trim(),
+        source_id: idCol ? row[idCol] : null,
+        category: catCol ? row[catCol] : 'Partner',
+        source: 'minicrm_partner',
+        raw_data: rawData,
+      });
+    });
+  }
+
+  // Deduplicate: partner data takes priority over sales
+  // Key by source_id first, then by name
+  const projectMap = new Map();
+
+  salesProjects.forEach((p) => {
+    const key = p.source_id
+      ? `id:${p.source_id}`
+      : `name:${p.name.toLowerCase()}`;
+    if (!projectMap.has(key)) {
+      projectMap.set(key, p);
+    }
+  });
+
+  partnerProjects.forEach((p) => {
+    const key = p.source_id
+      ? `id:${p.source_id}`
+      : `name:${p.name.toLowerCase()}`;
+    // Partner always overrides sales
+    projectMap.set(key, p);
+  });
+
+  // Also deduplicate by name across different IDs
+  const nameMap = new Map();
+  const uniqueProjects = [];
+  for (const p of projectMap.values()) {
+    const nameKey = p.name.toLowerCase();
+    if (!nameMap.has(nameKey)) {
+      nameMap.set(nameKey, true);
+      uniqueProjects.push(p);
+    }
+  }
+
+  // Upsert to Supabase - only MiniCRM projects (never touch manual ones)
+  let synced = 0;
+  let errors = 0;
+  const now = new Date().toISOString();
+
+  for (const project of uniqueProjects) {
+    const minicrm_id = project.source_id
+      ? parseInt(project.source_id) || hashName(project.name)
+      : hashName(project.name);
+
+    const upsertData = {
+      minicrm_id,
+      name: project.name,
+      category_name: project.category || null,
+      source: project.source,
+      raw_data: project.raw_data,
+      status: 'active',
+      last_synced_at: now,
+    };
+
+    const { error: upsertError } = await supabase
+      .from('minicrm_projects')
+      .upsert(upsertData, { onConflict: 'minicrm_id' });
+
+    if (upsertError) {
+      // Hash collision - try offset ID
+      const { error: retryError } = await supabase
+        .from('minicrm_projects')
+        .upsert(
+          { ...upsertData, minicrm_id: minicrm_id + 100000 },
+          { onConflict: 'minicrm_id' }
+        );
+      if (!retryError) synced++;
+      else errors++;
+    } else {
+      synced++;
+    }
+  }
+
+  return {
+    success: true,
+    synced,
+    errors,
+    total_found: uniqueProjects.length,
+    sales_count: salesProjects.length,
+    partner_count: partnerProjects.length,
+    duplicates_removed: salesProjects.length + partnerProjects.length - uniqueProjects.length,
+    sales_columns: salesHeaders,
+    partner_columns: partnerHeaders,
+  };
 }
 
 export async function POST() {
@@ -183,125 +326,15 @@ export async function POST() {
       );
     }
 
-    // Fetch both CSV sources
-    const [salesRows, partnerRows] = await Promise.all([
-      fetchCSV(CSV_URLS.sales),
-      fetchCSV(CSV_URLS.partners),
-    ]);
+    const result = await syncProjects(supabase);
 
-    // Extract projects from sales data
-    const salesProjects = [];
-    if (salesRows.length > 0) {
-      const headers = Object.keys(salesRows[0]);
-      const nameCol = findNameColumn(headers);
-      const idCol = findIdColumn(headers);
-      const catCol = findCategoryColumn(headers);
+    // Update last sync timestamp in settings
+    await supabase.from('app_settings').upsert(
+      { key: 'last_sync_at', value: new Date().toISOString() },
+      { onConflict: 'key' }
+    );
 
-      salesRows.forEach((row) => {
-        const name = row[nameCol];
-        if (name) {
-          salesProjects.push({
-            name,
-            source_id: idCol ? row[idCol] : null,
-            category: catCol ? row[catCol] : 'Értékesítés',
-            source: 'sales',
-          });
-        }
-      });
-    }
-
-    // Extract projects from partner data
-    const partnerProjects = [];
-    if (partnerRows.length > 0) {
-      const headers = Object.keys(partnerRows[0]);
-      const nameCol = findNameColumn(headers);
-      const idCol = findIdColumn(headers);
-      const catCol = findCategoryColumn(headers);
-
-      partnerRows.forEach((row) => {
-        const name = row[nameCol];
-        if (name) {
-          partnerProjects.push({
-            name,
-            source_id: idCol ? row[idCol] : null,
-            category: catCol ? row[catCol] : 'Partner',
-            source: 'partner',
-          });
-        }
-      });
-    }
-
-    // Deduplicate: partner data takes priority over sales data
-    const projectMap = new Map();
-
-    // Add sales first
-    salesProjects.forEach((p) => {
-      const key = p.name.trim().toLowerCase();
-      if (!projectMap.has(key)) {
-        projectMap.set(key, p);
-      }
-    });
-
-    // Then overwrite with partner data (higher priority)
-    partnerProjects.forEach((p) => {
-      const key = p.name.trim().toLowerCase();
-      projectMap.set(key, p);
-    });
-
-    const uniqueProjects = Array.from(projectMap.values());
-
-    // Upsert to Supabase
-    let synced = 0;
-    let errors = 0;
-
-    for (const project of uniqueProjects) {
-      const minicrm_id = project.source_id
-        ? parseInt(project.source_id) || hashName(project.name)
-        : hashName(project.name);
-
-      const { error: upsertError } = await supabase
-        .from('minicrm_projects')
-        .upsert(
-          {
-            minicrm_id,
-            name: project.name.trim(),
-            category_name: project.category || null,
-            status: 'active',
-            last_synced_at: new Date().toISOString(),
-          },
-          { onConflict: 'minicrm_id' }
-        );
-
-      if (upsertError) {
-        // If minicrm_id conflict with different name, try with name match
-        const { error: nameError } = await supabase
-          .from('minicrm_projects')
-          .upsert(
-            {
-              minicrm_id: minicrm_id + 100000,
-              name: project.name.trim(),
-              category_name: project.category || null,
-              status: 'active',
-              last_synced_at: new Date().toISOString(),
-            },
-            { onConflict: 'minicrm_id' }
-          );
-        if (!nameError) synced++;
-        else errors++;
-      } else {
-        synced++;
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      synced,
-      errors,
-      total_found: uniqueProjects.length,
-      sales_count: salesProjects.length,
-      partner_count: partnerProjects.length,
-      duplicates_removed: salesProjects.length + partnerProjects.length - uniqueProjects.length,
-    });
+    return NextResponse.json(result);
   } catch (err) {
     console.error('Sync hiba:', err);
     return NextResponse.json(
@@ -309,16 +342,4 @@ export async function POST() {
       { status: 500 }
     );
   }
-}
-
-// Simple hash function for generating a numeric ID from a string
-function hashName(name) {
-  let hash = 0;
-  const str = name.trim().toLowerCase();
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-  return Math.abs(hash);
 }
