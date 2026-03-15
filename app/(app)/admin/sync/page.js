@@ -110,13 +110,19 @@ export default function AdminSyncPage() {
         return;
       }
 
-      setMessage({
-        type: 'success',
-        text: `Sikeres szinkronizálás! ${data.synced} projekt szinkronizálva.\n` +
-          `Értékesítés: ${data.sales_count} db | Partnerek: ${data.partner_count} db\n` +
-          `Duplikáció szűrve: ${data.duplicates_removed} db | Összesen: ${data.total_found} egyedi projekt` +
-          (data.errors > 0 ? `\nHibák: ${data.errors}` : ''),
-      });
+      let details = `Sikeres szinkronizálás! ${data.synced} projekt szinkronizálva.\n` +
+        `Értékesítés: ${data.sales_count} db | Partnerek: ${data.partner_count} db\n` +
+        `Duplikáció szűrve: ${data.duplicates_removed} db | Összesen: ${data.total_found} egyedi projekt`;
+      if (data.errors > 0) details += `\nHibák: ${data.errors}`;
+      if (data.sales_mapping) {
+        details += `\n\nÉrtékesítés oszlopok: [${data.sales_mapping.headers?.join(', ')}]`;
+        details += `\n  Név oszlop: "${data.sales_mapping.nameCol}" | ID oszlop: "${data.sales_mapping.idCol}" | Kategória: "${data.sales_mapping.catCol}"`;
+      }
+      if (data.partner_mapping) {
+        details += `\nPartner oszlopok: [${data.partner_mapping.headers?.join(', ')}]`;
+        details += `\n  Név oszlop: "${data.partner_mapping.nameCol}" | ID oszlop: "${data.partner_mapping.idCol}" | Kategória: "${data.partner_mapping.catCol}"`;
+      }
+      setMessage({ type: 'success', text: details });
       loadProjects();
       loadSettings();
     } catch {

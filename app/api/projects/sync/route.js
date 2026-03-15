@@ -81,7 +81,15 @@ function parseCSVLine(line) {
   return result;
 }
 
-function findColumn(headers, candidates, fuzzyTerms) {
+// Columns that should be excluded from name matching (contain IDs, not names)
+const ID_LIKE_TERMS = ['id', 'azonosító', 'szám', 'number', 'kód', 'code'];
+
+function isIdLikeColumn(header) {
+  const lower = header.toLowerCase();
+  return ID_LIKE_TERMS.some((term) => lower.includes(term));
+}
+
+function findColumn(headers, candidates, fuzzyTerms, excludeIdLike) {
   for (const candidate of candidates) {
     const found = headers.find(
       (h) => h.toLowerCase() === candidate.toLowerCase()
@@ -89,27 +97,55 @@ function findColumn(headers, candidates, fuzzyTerms) {
     if (found) return found;
   }
   if (fuzzyTerms) {
-    const fuzzy = headers.find((h) =>
-      fuzzyTerms.some((term) => h.toLowerCase().includes(term))
-    );
+    const fuzzy = headers.find((h) => {
+      if (excludeIdLike && isIdLikeColumn(h)) return false;
+      return fuzzyTerms.some((term) => h.toLowerCase().includes(term));
+    });
     if (fuzzy) return fuzzy;
   }
   return null;
 }
 
 function findNameColumn(headers) {
-  return findColumn(
+  // First try exact match with known name column names
+  const exactCandidates = [
+    'Name', 'name', 'Név', 'név',
+    'ProjectName', 'Projektnév', 'Projekt neve',
+    'Cégnév', 'Cég neve',
+    'Kapcsolattartó neve', 'Partner neve', 'Ügyfél neve',
+  ];
+  const exact = findColumn(headers, exactCandidates, null, false);
+  if (exact) return exact;
+
+  // Fuzzy match but exclude ID-like columns (e.g. "Projekt azonosító")
+  const fuzzy = findColumn(
     headers,
-    ['Name', 'name', 'Név', 'név', 'ProjectName', 'Projektnév', 'Projekt neve', 'Cégnév', 'Cég neve', 'Cég', 'Projekt', 'Kapcsolattartó', 'Partner', 'Ügyfél'],
-    ['név', 'name', 'projekt', 'cég']
-  ) || headers[0];
+    [],
+    ['név', 'name'],
+    true
+  );
+  if (fuzzy) return fuzzy;
+
+  // Last resort: try broader terms, still excluding ID-like columns
+  const broader = findColumn(
+    headers,
+    ['Cég', 'Kapcsolattartó', 'Partner', 'Ügyfél'],
+    ['projekt', 'cég'],
+    true
+  );
+  if (broader) return broader;
+
+  // Absolute fallback: first column that is NOT id-like
+  const nonId = headers.find((h) => !isIdLikeColumn(h));
+  return nonId || headers[0];
 }
 
 function findIdColumn(headers) {
   return findColumn(
     headers,
-    ['Id', 'id', 'ID', 'Azonosító', 'azonosító', 'MiniCRM ID', 'ProjectId', 'Projekt ID'],
-    ['id', 'azonosító']
+    ['Id', 'id', 'ID', 'Azonosító', 'azonosító', 'MiniCRM ID', 'ProjectId', 'Projekt ID', 'Projekt azonosító'],
+    ['id', 'azonosító'],
+    false
   );
 }
 
@@ -117,7 +153,8 @@ function findCategoryColumn(headers) {
   return findColumn(
     headers,
     ['Category', 'Kategória', 'kategória', 'CategoryName', 'StatusGroup', 'Státusz', 'Status', 'Típus', 'Type'],
-    null
+    null,
+    false
   );
 }
 
@@ -161,16 +198,19 @@ export async function syncProjects(supabase) {
 
   // Process sales data
   const salesProjects = [];
+  const salesColumnMap = { headers: salesHeaders };
   if (salesRows.length > 0) {
     const nameCol = findNameColumn(salesHeaders);
     const idCol = findIdColumn(salesHeaders);
     const catCol = findCategoryColumn(salesHeaders);
+    salesColumnMap.nameCol = nameCol;
+    salesColumnMap.idCol = idCol;
+    salesColumnMap.catCol = catCol;
 
     salesRows.forEach((row) => {
       const name = row[nameCol];
       if (!name) return;
 
-      // Build raw_data with all CSV fields
       const rawData = {};
       salesHeaders.forEach((h) => {
         if (row[h]) rawData[h] = row[h];
@@ -188,10 +228,14 @@ export async function syncProjects(supabase) {
 
   // Process partner data
   const partnerProjects = [];
+  const partnerColumnMap = { headers: partnerHeaders };
   if (partnerRows.length > 0) {
     const nameCol = findNameColumn(partnerHeaders);
     const idCol = findIdColumn(partnerHeaders);
     const catCol = findCategoryColumn(partnerHeaders);
+    partnerColumnMap.nameCol = nameCol;
+    partnerColumnMap.idCol = idCol;
+    partnerColumnMap.catCol = catCol;
 
     partnerRows.forEach((row) => {
       const name = row[nameCol];
@@ -291,8 +335,8 @@ export async function syncProjects(supabase) {
     sales_count: salesProjects.length,
     partner_count: partnerProjects.length,
     duplicates_removed: salesProjects.length + partnerProjects.length - uniqueProjects.length,
-    sales_columns: salesHeaders,
-    partner_columns: partnerHeaders,
+    sales_mapping: salesColumnMap,
+    partner_mapping: partnerColumnMap,
   };
 }
 
