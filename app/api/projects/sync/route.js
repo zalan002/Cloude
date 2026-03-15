@@ -172,19 +172,21 @@ async function fetchCSV(url) {
   return parseCSV(text);
 }
 
-// Generate a unique numeric ID from a string (uses two 32-bit hashes combined)
+// Generate a unique numeric ID from a string (FNV-1a hash, fits in INT4 range)
 function hashString(str) {
   const s = str.trim().toLowerCase();
   let h1 = 0x811c9dc5; // FNV offset basis
-  let h2 = 0;
+  let h2 = 0x12345678;
   for (let i = 0; i < s.length; i++) {
     const c = s.charCodeAt(i);
     h1 ^= c;
     h1 = Math.imul(h1, 0x01000193); // FNV prime
-    h2 = Math.imul(h2, 31) + c;
+    h2 ^= c * (i + 1);
+    h2 = Math.imul(h2, 0x5bd1e995);
   }
-  // Combine both hashes into a large positive integer (up to ~10^15)
-  return Math.abs(h1) * 100000 + Math.abs(h2 & 0x7ffff);
+  // Combine and keep within safe INT4 range (1,000,000 to 2,147,483,647)
+  const combined = Math.abs((h1 ^ h2) | 0);
+  return (combined % 2146483647) + 1000000;
 }
 
 // Convert a source_id (numeric or alphanumeric) to a stable numeric minicrm_id
