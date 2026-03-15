@@ -172,16 +172,30 @@ async function fetchCSV(url) {
   return parseCSV(text);
 }
 
-// Simple hash for generating numeric ID from name
-function hashName(name) {
-  let hash = 0;
-  const str = name.trim().toLowerCase();
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
+// Generate a unique numeric ID from a string (uses two 32-bit hashes combined)
+function hashString(str) {
+  const s = str.trim().toLowerCase();
+  let h1 = 0x811c9dc5; // FNV offset basis
+  let h2 = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    h1 ^= c;
+    h1 = Math.imul(h1, 0x01000193); // FNV prime
+    h2 = Math.imul(h2, 31) + c;
   }
-  return Math.abs(hash);
+  // Combine both hashes into a large positive integer (up to ~10^15)
+  return Math.abs(h1) * 100000 + Math.abs(h2 & 0x7ffff);
+}
+
+// Convert a source_id (numeric or alphanumeric) to a stable numeric minicrm_id
+function toMiniCrmId(sourceId, name) {
+  if (sourceId) {
+    const parsed = parseInt(sourceId);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+    // Alphanumeric ID: hash it
+    return hashString(sourceId);
+  }
+  return hashString(name);
 }
 
 // Core sync logic - used by both manual trigger and cron
@@ -291,15 +305,29 @@ export async function syncProjects(supabase) {
   // Upsert to Supabase - only MiniCRM projects (never touch manual ones)
   let synced = 0;
   let errors = 0;
+  let collisions = 0;
   const now = new Date().toISOString();
 
-  for (const project of uniqueProjects) {
-    const minicrm_id = project.source_id
-      ? parseInt(project.source_id) || hashName(project.name)
-      : hashName(project.name);
+  // Pre-compute all minicrm_ids and resolve collisions before upserting
+  const usedIds = new Set();
+  const projectsWithIds = uniqueProjects.map((project) => {
+    let minicrm_id = toMiniCrmId(project.source_id, project.name);
 
+    // Resolve hash collisions by incrementing
+    let attempts = 0;
+    while (usedIds.has(minicrm_id) && attempts < 1000) {
+      minicrm_id++;
+      attempts++;
+      collisions++;
+    }
+    usedIds.add(minicrm_id);
+
+    return { ...project, minicrm_id };
+  });
+
+  for (const project of projectsWithIds) {
     const upsertData = {
-      minicrm_id,
+      minicrm_id: project.minicrm_id,
       name: project.name,
       category_name: project.category || null,
       source: project.source,
@@ -313,15 +341,8 @@ export async function syncProjects(supabase) {
       .upsert(upsertData, { onConflict: 'minicrm_id' });
 
     if (upsertError) {
-      // Hash collision - try offset ID
-      const { error: retryError } = await supabase
-        .from('minicrm_projects')
-        .upsert(
-          { ...upsertData, minicrm_id: minicrm_id + 100000 },
-          { onConflict: 'minicrm_id' }
-        );
-      if (!retryError) synced++;
-      else errors++;
+      console.error(`Upsert error for "${project.name}":`, upsertError.message);
+      errors++;
     } else {
       synced++;
     }
@@ -335,6 +356,7 @@ export async function syncProjects(supabase) {
     sales_count: salesProjects.length,
     partner_count: partnerProjects.length,
     duplicates_removed: salesProjects.length + partnerProjects.length - uniqueProjects.length,
+    hash_collisions: collisions,
     sales_mapping: salesColumnMap,
     partner_mapping: partnerColumnMap,
   };
