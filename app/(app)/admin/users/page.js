@@ -151,10 +151,10 @@ export default function AdminUsersPage() {
         <p className="text-sm text-dark-text">
           Új felhasználó létrehozásához kérjük, lépjen kapcsolatba velünk az alábbi email címen:{' '}
           <a
-            href="mailto:Support@traininghungary.com"
+            href="mailto:CONSORTIO@traininghungary.com"
             className="font-semibold text-medium-blue hover:underline"
           >
-            Support@traininghungary.com
+            CONSORTIO@traininghungary.com
           </a>
         </p>
       </div>

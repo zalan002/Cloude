@@ -169,7 +169,7 @@ var doc = new Document({
         st(4, "Kattintson a " + q("Bejelentkez\u00e9s") + " gombra."),
         st(5, "Sikeres bejelentkez\u00e9s ut\u00e1n a Kezd\u0151lapra (Dashboard) ker\u00fcl."),
         empty(),
-        warn("Figyelem: A felhaszn\u00e1l\u00f3i fi\u00f3kokat az adminisztr\u00e1tor hozza l\u00e9tre. Ha m\u00e9g nincs fi\u00f3kja, k\u00e9rje a rendszergazd\u00e1t vagy \u00edrjon a support@traininghungary.com c\u00edmre."),
+        warn("Figyelem: A felhaszn\u00e1l\u00f3i fi\u00f3kokat az adminisztr\u00e1tor hozza l\u00e9tre. Ha m\u00e9g nincs fi\u00f3kja, k\u00e9rje a rendszergazd\u00e1t vagy \u00edrjon a CONSORTIO@traininghungary.com c\u00edmre."),
         info("Tipp: A rendszer megjegyzi a bejelentkez\u00e9s\u00e9t, \u00edgy nem kell minden alkalommal \u00fajra bel\u00e9pnie, am\u00edg ki nem jelentkezik."),
 
         // 3. KEZDOLAP
@@ -376,7 +376,7 @@ var doc = new Document({
         warn("Saj\u00e1t fi\u00f3kj\u00e1t nem m\u00f3dos\u00edthatja. Ezt egy m\u00e1sik adminisztr\u00e1tornak kell elv\u00e9geznie."),
         empty(),
         p("\u00daj felhaszn\u00e1l\u00f3 ig\u00e9nyl\u00e9se:", {bold:true}),
-        p("\u00cdrjon a support@traininghungary.com c\u00edmre az al\u00e1bbi adatokkal:"),
+        p("\u00cdrjon a CONSORTIO@traininghungary.com c\u00edmre az al\u00e1bbi adatokkal:"),
         bl("Felhaszn\u00e1l\u00f3 teljes neve"),
         bl("E-mail c\u00edm"),
         bl("K\u00edv\u00e1nt szerepk\u00f6r (Admin vagy Munkat\u00e1rs)"),
@@ -387,7 +387,7 @@ var doc = new Document({
         h1("8. Gyakori k\u00e9rd\u00e9sek (GYIK)"),
         div(),
         p("Elfelejtett jelsz\u00f3 \u2013 mit tegyek?", {bold:true}),
-        p("\u00cdrjon a support@traininghungary.com c\u00edmre, \u00e9s az adminisztr\u00e1tor \u00faj jelsz\u00f3t \u00e1ll\u00edt be \u00d6nnek.", {indent:360}),
+        p("\u00cdrjon a CONSORTIO@traininghungary.com c\u00edmre, \u00e9s az adminisztr\u00e1tor \u00faj jelsz\u00f3t \u00e1ll\u00edt be \u00d6nnek.", {indent:360}),
         empty(),
         p("M\u00faltbeli napra is r\u00f6gz\u00edthetek id\u0151t?", {bold:true}),
         p("Igen! Az id\u0151bejegyz\u00e9s \u0171rlapon a d\u00e1tum mez\u0151ben kiv\u00e1laszthat kor\u00e1bbi d\u00e1tumot is.", {indent:360}),
@@ -430,7 +430,7 @@ var doc = new Document({
         empty(),
         new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
           new TableRow({ children: [ ce("Kapcsolat", {header:true, width:30}), ce("El\u00e9rhet\u0151s\u00e9g", {header:true, width:70}) ] }),
-          new TableRow({ children: [ ce("E-mail", {bold:true}), ce("support@traininghungary.com") ] }),
+          new TableRow({ children: [ ce("E-mail", {bold:true}), ce("CONSORTIO@traininghungary.com") ] }),
           new TableRow({ children: [ ce("Rendszer URL", {bold:true, shade:true}), ce("https://consortio.traininghungary.com", {shade:true}) ] }),
           new TableRow({ children: [ ce("\u00dczemelteto", {bold:true}), ce("Training Hungary Kft.") ] }),
         ]}),
