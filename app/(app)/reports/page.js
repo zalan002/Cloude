@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 const TABS = [
   { id: 'monthly', label: 'Havi összesítő' },
   { id: 'projects', label: 'Projektek' },
+  { id: 'tasks', label: 'Feladatok' },
   { id: 'weekly', label: 'Heti nézet' },
 ];
 
@@ -29,6 +30,63 @@ function formatTimeShort(hours) {
   return `${h}ó ${m}p`;
 }
 
+function ChevronIcon({ expanded }) {
+  return (
+    <svg
+      className={`w-4 h-4 text-mid-gray transition-transform ${expanded ? 'rotate-90' : ''}`}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+    </svg>
+  );
+}
+
+function BarRow({ label, hours, maxHours, onClick, expanded, children }) {
+  return (
+    <div>
+      <div
+        className={`flex items-center gap-4 ${onClick ? 'cursor-pointer group' : ''}`}
+        onClick={onClick}
+      >
+        <div className="w-32 md:w-48 flex-shrink-0 flex items-center gap-2">
+          {onClick && <ChevronIcon expanded={expanded} />}
+          <p className="text-sm font-montserrat font-semibold text-dark-text truncate">
+            {label}
+          </p>
+        </div>
+        <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-medium-blue to-deep-blue transition-all duration-500"
+            style={{ width: `${Math.min((hours / maxHours) * 100, 100)}%` }}
+          />
+        </div>
+        <span className="text-sm font-montserrat font-bold text-medium-blue w-28 text-right flex-shrink-0">
+          {formatTime(hours)}
+        </span>
+      </div>
+      {expanded && children && (
+        <div className="ml-10 mt-2 mb-3 space-y-1.5 border-l-2 border-medium-blue/20 pl-4">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SubRow({ label, hours }) {
+  return (
+    <div className="flex items-center justify-between text-sm">
+      <span className="text-mid-gray truncate">{label}</span>
+      <span className="font-montserrat font-semibold text-dark-text ml-4 flex-shrink-0">
+        {formatTime(hours)}
+      </span>
+    </div>
+  );
+}
+
 export default function ReportsPage() {
   const supabase = createClient();
   const [activeTab, setActiveTab] = useState('monthly');
@@ -46,10 +104,22 @@ export default function ReportsPage() {
   // Project state
   const [projectData, setProjectData] = useState([]);
   const [projectUserFilter, setProjectUserFilter] = useState('all');
-  const [projectDetailData, setProjectDetailData] = useState([]);
+  const [projectDateFrom, setProjectDateFrom] = useState('');
+  const [projectDateTo, setProjectDateTo] = useState('');
+  const [expandedProjects, setExpandedProjects] = useState([]);
+
+  // Task state
+  const [taskData, setTaskData] = useState([]);
+  const [taskUserFilter, setTaskUserFilter] = useState('all');
+  const [taskDateFrom, setTaskDateFrom] = useState('');
+  const [taskDateTo, setTaskDateTo] = useState('');
+  const [expandedTasks, setExpandedTasks] = useState([]);
 
   // Weekly state
   const [weeklyData, setWeeklyData] = useState([]);
+
+  // Shared expand state
+  const [expandedUsers, setExpandedUsers] = useState([]);
 
   useEffect(() => {
     async function loadProfile() {
@@ -64,7 +134,6 @@ export default function ReportsPage() {
           .single();
         setProfile(data);
 
-        // Load all users if admin
         if (data?.role === 'admin') {
           const { data: allUsers } = await supabase
             .from('profiles')
@@ -78,7 +147,7 @@ export default function ReportsPage() {
     loadProfile();
   }, []);
 
-  // Load monthly data - grouped by person with project breakdown
+  // Load monthly data
   const loadMonthly = useCallback(async () => {
     if (!profile) return;
 
@@ -90,7 +159,7 @@ export default function ReportsPage() {
 
     let query = supabase
       .from('time_entries')
-      .select('user_id, hours, project_id, profiles(full_name), minicrm_projects(name)')
+      .select('user_id, hours, project_id, task_id, profiles(full_name), minicrm_projects(name), tasks(name)')
       .gte('entry_date', startDate)
       .lte('entry_date', endDate);
 
@@ -100,7 +169,6 @@ export default function ReportsPage() {
 
     const { data } = await query;
 
-    // Aggregate by user, with project sub-totals
     const userMap = {};
     (data || []).forEach((entry) => {
       const uid = entry.user_id;
@@ -109,15 +177,18 @@ export default function ReportsPage() {
           name: entry.profiles?.full_name || 'Ismeretlen',
           hours: 0,
           projects: {},
+          tasks: {},
         };
       }
       userMap[uid].hours += Number(entry.hours);
 
       const projectName = entry.minicrm_projects?.name || 'Ismeretlen';
-      if (!userMap[uid].projects[projectName]) {
-        userMap[uid].projects[projectName] = 0;
-      }
+      if (!userMap[uid].projects[projectName]) userMap[uid].projects[projectName] = 0;
       userMap[uid].projects[projectName] += Number(entry.hours);
+
+      const taskName = entry.tasks?.name || 'Nincs feladat';
+      if (!userMap[uid].tasks[taskName]) userMap[uid].tasks[taskName] = 0;
+      userMap[uid].tasks[taskName] += Number(entry.hours);
     });
 
     const result = Object.values(userMap)
@@ -126,19 +197,22 @@ export default function ReportsPage() {
         projectList: Object.entries(u.projects)
           .map(([name, hours]) => ({ name, hours }))
           .sort((a, b) => b.hours - a.hours),
+        taskList: Object.entries(u.tasks)
+          .map(([name, hours]) => ({ name, hours }))
+          .sort((a, b) => b.hours - a.hours),
       }))
       .sort((a, b) => b.hours - a.hours);
 
     setMonthlyData(result);
   }, [profile, selectedMonth]);
 
-  // Load project data with user breakdown
+  // Load project data
   const loadProjects = useCallback(async () => {
     if (!profile) return;
 
     let query = supabase
       .from('time_entries')
-      .select('project_id, hours, user_id, minicrm_projects(name), profiles(full_name)');
+      .select('project_id, hours, user_id, task_id, minicrm_projects(name), profiles(full_name), tasks(name)');
 
     if (profile.role !== 'admin') {
       query = query.eq('user_id', profile.id);
@@ -146,9 +220,11 @@ export default function ReportsPage() {
       query = query.eq('user_id', projectUserFilter);
     }
 
+    if (projectDateFrom) query = query.gte('entry_date', projectDateFrom);
+    if (projectDateTo) query = query.lte('entry_date', projectDateTo);
+
     const { data } = await query;
 
-    // Aggregate by project
     const projectMap = {};
     (data || []).forEach((entry) => {
       const pid = entry.project_id;
@@ -157,29 +233,85 @@ export default function ReportsPage() {
           name: entry.minicrm_projects?.name || 'Ismeretlen',
           hours: 0,
           users: {},
+          tasks: {},
         };
       }
       projectMap[pid].hours += Number(entry.hours);
 
       const userName = entry.profiles?.full_name || 'Ismeretlen';
-      if (!projectMap[pid].users[userName]) {
-        projectMap[pid].users[userName] = 0;
-      }
+      if (!projectMap[pid].users[userName]) projectMap[pid].users[userName] = 0;
       projectMap[pid].users[userName] += Number(entry.hours);
+
+      const taskName = entry.tasks?.name || 'Nincs feladat';
+      if (!projectMap[pid].tasks[taskName]) projectMap[pid].tasks[taskName] = 0;
+      projectMap[pid].tasks[taskName] += Number(entry.hours);
     });
 
     const result = Object.values(projectMap)
       .map((p) => ({
         ...p,
-        userList: Object.entries(p.users)
-          .map(([name, hours]) => ({ name, hours }))
-          .sort((a, b) => b.hours - a.hours),
+        userList: Object.entries(p.users).map(([name, hours]) => ({ name, hours })).sort((a, b) => b.hours - a.hours),
+        taskList: Object.entries(p.tasks).map(([name, hours]) => ({ name, hours })).sort((a, b) => b.hours - a.hours),
       }))
       .sort((a, b) => b.hours - a.hours);
 
     setProjectData(result);
-    setProjectDetailData([]);
-  }, [profile, projectUserFilter]);
+    setExpandedProjects([]);
+  }, [profile, projectUserFilter, projectDateFrom, projectDateTo]);
+
+  // Load task data
+  const loadTasks = useCallback(async () => {
+    if (!profile) return;
+
+    let query = supabase
+      .from('time_entries')
+      .select('task_id, hours, user_id, project_id, tasks(name), profiles(full_name), minicrm_projects(name)');
+
+    if (profile.role !== 'admin') {
+      query = query.eq('user_id', profile.id);
+    } else if (taskUserFilter !== 'all') {
+      query = query.eq('user_id', taskUserFilter);
+    }
+
+    if (taskDateFrom) query = query.gte('entry_date', taskDateFrom);
+    if (taskDateTo) query = query.lte('entry_date', taskDateTo);
+
+    const { data } = await query;
+
+    const taskMap = {};
+    (data || []).forEach((entry) => {
+      const taskName = entry.tasks?.name || 'Nincs feladat';
+      const key = taskName;
+      if (!taskMap[key]) {
+        taskMap[key] = {
+          name: taskName,
+          hours: 0,
+          users: {},
+          projects: {},
+        };
+      }
+      taskMap[key].hours += Number(entry.hours);
+
+      const userName = entry.profiles?.full_name || 'Ismeretlen';
+      if (!taskMap[key].users[userName]) taskMap[key].users[userName] = 0;
+      taskMap[key].users[userName] += Number(entry.hours);
+
+      const projectName = entry.minicrm_projects?.name || 'Ismeretlen';
+      if (!taskMap[key].projects[projectName]) taskMap[key].projects[projectName] = 0;
+      taskMap[key].projects[projectName] += Number(entry.hours);
+    });
+
+    const result = Object.values(taskMap)
+      .map((t) => ({
+        ...t,
+        userList: Object.entries(t.users).map(([name, hours]) => ({ name, hours })).sort((a, b) => b.hours - a.hours),
+        projectList: Object.entries(t.projects).map(([name, hours]) => ({ name, hours })).sort((a, b) => b.hours - a.hours),
+      }))
+      .sort((a, b) => b.hours - a.hours);
+
+    setTaskData(result);
+    setExpandedTasks([]);
+  }, [profile, taskUserFilter, taskDateFrom, taskDateTo]);
 
   // Load weekly data
   const loadWeekly = useCallback(async () => {
@@ -191,14 +323,11 @@ export default function ReportsPage() {
       days.push(d.toISOString().split('T')[0]);
     }
 
-    const startDate = days[0];
-    const endDate = days[days.length - 1];
-
     let query = supabase
       .from('time_entries')
       .select('entry_date, hours')
-      .gte('entry_date', startDate)
-      .lte('entry_date', endDate);
+      .gte('entry_date', days[0])
+      .lte('entry_date', days[days.length - 1]);
 
     if (profile.role !== 'admin') {
       query = query.eq('user_id', profile.id);
@@ -212,73 +341,49 @@ export default function ReportsPage() {
       dayMap[entry.entry_date] += Number(entry.hours);
     });
 
-    const result = days.map((date) => {
-      const d = new Date(date + 'T00:00:00');
-      const dayOfWeek = d.getDay();
-      return {
-        date,
-        label: DAY_NAMES[dayOfWeek],
-        hours: dayMap[date] || 0,
-        isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
-        dayNum: d.getDate(),
-      };
-    });
-
-    setWeeklyData(result);
+    setWeeklyData(
+      days.map((date) => {
+        const d = new Date(date + 'T00:00:00');
+        const dayOfWeek = d.getDay();
+        return {
+          date,
+          label: DAY_NAMES[dayOfWeek],
+          hours: dayMap[date] || 0,
+          isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+          dayNum: d.getDate(),
+        };
+      })
+    );
   }, [profile]);
 
   useEffect(() => {
     if (activeTab === 'monthly') loadMonthly();
     if (activeTab === 'projects') loadProjects();
+    if (activeTab === 'tasks') loadTasks();
     if (activeTab === 'weekly') loadWeekly();
-  }, [activeTab, loadMonthly, loadProjects, loadWeekly]);
+  }, [activeTab, loadMonthly, loadProjects, loadTasks, loadWeekly]);
 
-  const toggleProjectDetail = (projectName) => {
-    setProjectDetailData((prev) =>
-      prev.includes(projectName)
-        ? prev.filter((n) => n !== projectName)
-        : [...prev, projectName]
-    );
-  };
-
-  const [expandedUsers, setExpandedUsers] = useState([]);
-  const toggleUserDetail = (userName) => {
-    setExpandedUsers((prev) =>
-      prev.includes(userName)
-        ? prev.filter((n) => n !== userName)
-        : [...prev, userName]
+  const toggle = (list, setList, key) => {
+    setList((prev) =>
+      prev.includes(key) ? prev.filter((n) => n !== key) : [...prev, key]
     );
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <svg
-          className="spinner w-10 h-10 text-medium-blue"
-          viewBox="0 0 24 24"
-          fill="none"
-        >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-          />
+        <svg className="spinner w-10 h-10 text-medium-blue" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
         </svg>
       </div>
     );
   }
 
-  const maxMonthlyHours = Math.max(...monthlyData.map((u) => u.hours), 1);
-  const maxProjectHours = Math.max(...projectData.map((p) => p.hours), 1);
-  const maxWeeklyHours = Math.max(...weeklyData.map((d) => d.hours), 1);
+  const maxMonthly = Math.max(...monthlyData.map((u) => u.hours), 1);
+  const maxProject = Math.max(...projectData.map((p) => p.hours), 1);
+  const maxTask = Math.max(...taskData.map((t) => t.hours), 1);
+  const maxWeekly = Math.max(...weeklyData.map((d) => d.hours), 1);
 
   return (
     <div>
@@ -307,9 +412,7 @@ export default function ReportsPage() {
       {activeTab === 'monthly' && (
         <div className="card">
           <div className="flex items-center gap-4 mb-6">
-            <label className="text-sm font-semibold text-dark-text">
-              Hónap:
-            </label>
+            <label className="text-sm font-semibold text-dark-text">Hónap:</label>
             <input
               type="month"
               value={selectedMonth}
@@ -319,62 +422,31 @@ export default function ReportsPage() {
           </div>
 
           {monthlyData.length === 0 ? (
-            <p className="text-center text-mid-gray py-8">
-              Nincs adat a kiválasztott hónapra.
-            </p>
+            <p className="text-center text-mid-gray py-8">Nincs adat a kiválasztott hónapra.</p>
           ) : (
             <div className="space-y-3">
               {monthlyData.map((user, i) => (
-                <div key={i}>
-                  <div
-                    className="flex items-center gap-4 cursor-pointer group"
-                    onClick={() => toggleUserDetail(user.name)}
-                  >
-                    <div className="w-32 md:w-48 flex-shrink-0 flex items-center gap-2">
-                      <svg
-                        className={`w-4 h-4 text-mid-gray transition-transform ${
-                          expandedUsers.includes(user.name) ? 'rotate-90' : ''
-                        }`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                      </svg>
-                      <p className="text-sm font-montserrat font-semibold text-dark-text truncate">
-                        {user.name}
-                      </p>
-                    </div>
-                    <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-medium-blue to-deep-blue transition-all duration-500"
-                        style={{
-                          width: `${Math.min(
-                            (user.hours / maxMonthlyHours) * 100,
-                            100
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                    <span className="text-sm font-montserrat font-bold text-medium-blue w-28 text-right flex-shrink-0">
-                      {formatTime(user.hours)}
-                    </span>
-                  </div>
-                  {/* Project breakdown */}
-                  {expandedUsers.includes(user.name) && (
-                    <div className="ml-10 mt-2 mb-3 space-y-1.5 border-l-2 border-medium-blue/20 pl-4">
-                      {user.projectList.map((proj, j) => (
-                        <div key={j} className="flex items-center justify-between text-sm">
-                          <span className="text-mid-gray truncate">{proj.name}</span>
-                          <span className="font-montserrat font-semibold text-dark-text ml-4 flex-shrink-0">
-                            {formatTime(proj.hours)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                <BarRow
+                  key={i}
+                  label={user.name}
+                  hours={user.hours}
+                  maxHours={maxMonthly}
+                  onClick={() => toggle(expandedUsers, setExpandedUsers, user.name)}
+                  expanded={expandedUsers.includes(user.name)}
+                >
+                  {user.projectList.length > 0 && (
+                    <p className="text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider mb-1">Projektek</p>
                   )}
-                </div>
+                  {user.projectList.map((p, j) => (
+                    <SubRow key={`p-${j}`} label={p.name} hours={p.hours} />
+                  ))}
+                  {user.taskList.length > 0 && (
+                    <p className="text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider mt-3 mb-1">Feladatok</p>
+                  )}
+                  {user.taskList.map((t, j) => (
+                    <SubRow key={`t-${j}`} label={t.name} hours={t.hours} />
+                  ))}
+                </BarRow>
               ))}
             </div>
           )}
@@ -384,88 +456,168 @@ export default function ReportsPage() {
       {/* Projects tab */}
       {activeTab === 'projects' && (
         <div className="card">
-          {/* User filter for admins */}
-          {profile?.role === 'admin' && users.length > 0 && (
-            <div className="flex items-center gap-4 mb-6">
-              <label className="text-sm font-semibold text-dark-text">
-                Szűrés személy szerint:
-              </label>
-              <select
-                value={projectUserFilter}
-                onChange={(e) => setProjectUserFilter(e.target.value)}
-                className="input-field !w-auto"
-              >
-                <option value="all">Mindenki</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.full_name}
-                  </option>
-                ))}
-              </select>
+          <div className="flex flex-col md:flex-row items-start md:items-end gap-4 mb-6">
+            {profile?.role === 'admin' && users.length > 0 && (
+              <div>
+                <label className="text-xs font-semibold text-mid-gray uppercase tracking-wider block mb-1">Személy</label>
+                <select
+                  value={projectUserFilter}
+                  onChange={(e) => setProjectUserFilter(e.target.value)}
+                  className="input-field !w-auto !py-2 text-sm"
+                >
+                  <option value="all">Mindenki</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>{u.full_name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="text-xs font-semibold text-mid-gray uppercase tracking-wider block mb-1">Dátum -tól</label>
+              <input
+                type="date"
+                value={projectDateFrom}
+                onChange={(e) => setProjectDateFrom(e.target.value)}
+                className="input-field !w-auto !py-2 text-sm"
+              />
             </div>
-          )}
+            <div>
+              <label className="text-xs font-semibold text-mid-gray uppercase tracking-wider block mb-1">Dátum -ig</label>
+              <input
+                type="date"
+                value={projectDateTo}
+                onChange={(e) => setProjectDateTo(e.target.value)}
+                className="input-field !w-auto !py-2 text-sm"
+              />
+            </div>
+            {(projectDateFrom || projectDateTo) && (
+              <button
+                type="button"
+                onClick={() => { setProjectDateFrom(''); setProjectDateTo(''); }}
+                className="text-xs text-red-500 hover:text-red-700 font-semibold py-2"
+              >
+                Szűrő törlése
+              </button>
+            )}
+          </div>
 
           {projectData.length === 0 ? (
-            <p className="text-center text-mid-gray py-8">
-              Nincsenek projekt adatok.
-            </p>
+            <p className="text-center text-mid-gray py-8">Nincsenek projekt adatok.</p>
           ) : (
             <div className="space-y-3">
               {projectData.map((project, i) => (
-                <div key={i}>
-                  <div
-                    className="flex items-center gap-4 cursor-pointer group"
-                    onClick={() => toggleProjectDetail(project.name)}
-                  >
-                    <div className="w-32 md:w-48 flex-shrink-0 flex items-center gap-2">
-                      <svg
-                        className={`w-4 h-4 text-mid-gray transition-transform ${
-                          projectDetailData.includes(project.name) ? 'rotate-90' : ''
-                        }`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                      </svg>
-                      <p className="text-sm font-montserrat font-semibold text-dark-text truncate">
-                        {project.name}
-                      </p>
-                    </div>
-                    <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-medium-blue to-deep-blue transition-all duration-500"
-                        style={{
-                          width: `${(project.hours / maxProjectHours) * 100}%`,
-                        }}
-                      />
-                    </div>
-                    <span className="text-sm font-montserrat font-bold text-medium-blue w-28 text-right flex-shrink-0">
-                      {formatTime(project.hours)}
-                    </span>
-                  </div>
-                  {/* User breakdown */}
-                  {projectDetailData.includes(project.name) && (
-                    <div className="ml-10 mt-2 mb-3 space-y-1.5 border-l-2 border-medium-blue/20 pl-4">
-                      {project.userList.map((u, j) => (
-                        <div key={j} className="flex items-center justify-between text-sm">
-                          <span className="text-mid-gray truncate">{u.name}</span>
-                          <span className="font-montserrat font-semibold text-dark-text ml-4 flex-shrink-0">
-                            {formatTime(u.hours)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                <BarRow
+                  key={i}
+                  label={project.name}
+                  hours={project.hours}
+                  maxHours={maxProject}
+                  onClick={() => toggle(expandedProjects, setExpandedProjects, project.name)}
+                  expanded={expandedProjects.includes(project.name)}
+                >
+                  {project.userList.length > 0 && (
+                    <p className="text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider mb-1">Személyek</p>
                   )}
-                </div>
+                  {project.userList.map((u, j) => (
+                    <SubRow key={`u-${j}`} label={u.name} hours={u.hours} />
+                  ))}
+                  {project.taskList.length > 0 && (
+                    <p className="text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider mt-3 mb-1">Feladatok</p>
+                  )}
+                  {project.taskList.map((t, j) => (
+                    <SubRow key={`t-${j}`} label={t.name} hours={t.hours} />
+                  ))}
+                </BarRow>
               ))}
-
-              {/* Total */}
               <div className="border-t border-gray-200 pt-3 mt-4 flex items-center justify-between">
                 <span className="font-montserrat font-bold text-deep-blue">Összesen</span>
                 <span className="font-montserrat font-bold text-deep-blue">
                   {formatTime(projectData.reduce((sum, p) => sum + p.hours, 0))}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tasks tab */}
+      {activeTab === 'tasks' && (
+        <div className="card">
+          <div className="flex flex-col md:flex-row items-start md:items-end gap-4 mb-6">
+            {profile?.role === 'admin' && users.length > 0 && (
+              <div>
+                <label className="text-xs font-semibold text-mid-gray uppercase tracking-wider block mb-1">Személy</label>
+                <select
+                  value={taskUserFilter}
+                  onChange={(e) => setTaskUserFilter(e.target.value)}
+                  className="input-field !w-auto !py-2 text-sm"
+                >
+                  <option value="all">Mindenki</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>{u.full_name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="text-xs font-semibold text-mid-gray uppercase tracking-wider block mb-1">Dátum -tól</label>
+              <input
+                type="date"
+                value={taskDateFrom}
+                onChange={(e) => setTaskDateFrom(e.target.value)}
+                className="input-field !w-auto !py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-mid-gray uppercase tracking-wider block mb-1">Dátum -ig</label>
+              <input
+                type="date"
+                value={taskDateTo}
+                onChange={(e) => setTaskDateTo(e.target.value)}
+                className="input-field !w-auto !py-2 text-sm"
+              />
+            </div>
+            {(taskDateFrom || taskDateTo) && (
+              <button
+                type="button"
+                onClick={() => { setTaskDateFrom(''); setTaskDateTo(''); }}
+                className="text-xs text-red-500 hover:text-red-700 font-semibold py-2"
+              >
+                Szűrő törlése
+              </button>
+            )}
+          </div>
+
+          {taskData.length === 0 ? (
+            <p className="text-center text-mid-gray py-8">Nincsenek feladat adatok.</p>
+          ) : (
+            <div className="space-y-3">
+              {taskData.map((task, i) => (
+                <BarRow
+                  key={i}
+                  label={task.name}
+                  hours={task.hours}
+                  maxHours={maxTask}
+                  onClick={() => toggle(expandedTasks, setExpandedTasks, task.name)}
+                  expanded={expandedTasks.includes(task.name)}
+                >
+                  {task.userList.length > 0 && (
+                    <p className="text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider mb-1">Személyek</p>
+                  )}
+                  {task.userList.map((u, j) => (
+                    <SubRow key={`u-${j}`} label={u.name} hours={u.hours} />
+                  ))}
+                  {task.projectList.length > 0 && (
+                    <p className="text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider mt-3 mb-1">Projektek</p>
+                  )}
+                  {task.projectList.map((p, j) => (
+                    <SubRow key={`p-${j}`} label={p.name} hours={p.hours} />
+                  ))}
+                </BarRow>
+              ))}
+              <div className="border-t border-gray-200 pt-3 mt-4 flex items-center justify-between">
+                <span className="font-montserrat font-bold text-deep-blue">Összesen</span>
+                <span className="font-montserrat font-bold text-deep-blue">
+                  {formatTime(taskData.reduce((sum, t) => sum + t.hours, 0))}
                 </span>
               </div>
             </div>
@@ -478,43 +630,21 @@ export default function ReportsPage() {
         <div className="card">
           <div className="flex items-end gap-1 md:gap-2 h-64 pt-8">
             {weeklyData.map((day, i) => (
-              <div
-                key={i}
-                className="flex-1 flex flex-col items-center justify-end h-full"
-              >
-                {/* Hours label */}
-                <span
-                  className={`text-xs font-montserrat font-bold mb-1 ${
-                    day.hours > 0 ? 'text-medium-blue' : 'text-transparent'
-                  }`}
-                >
+              <div key={i} className="flex-1 flex flex-col items-center justify-end h-full">
+                <span className={`text-xs font-montserrat font-bold mb-1 ${day.hours > 0 ? 'text-medium-blue' : 'text-transparent'}`}>
                   {day.hours > 0 ? formatTimeShort(day.hours) : '0'}
                 </span>
-                {/* Bar */}
                 <div
                   className={`w-full rounded-t-md transition-all duration-500 ${
-                    day.isWeekend
-                      ? 'bg-medium-blue/30'
-                      : 'bg-gradient-to-t from-deep-blue to-medium-blue'
+                    day.isWeekend ? 'bg-medium-blue/30' : 'bg-gradient-to-t from-deep-blue to-medium-blue'
                   }`}
                   style={{
-                    height:
-                      day.hours > 0
-                        ? `${Math.max(
-                            (day.hours / maxWeeklyHours) * 100,
-                            5
-                          )}%`
-                        : '2px',
+                    height: day.hours > 0 ? `${Math.max((day.hours / maxWeekly) * 100, 5)}%` : '2px',
                     minHeight: day.hours > 0 ? '8px' : '2px',
                   }}
                 />
-                {/* Day label */}
                 <div className="mt-2 text-center">
-                  <p
-                    className={`text-xs font-montserrat font-semibold ${
-                      day.isWeekend ? 'text-gray-400' : 'text-dark-text'
-                    }`}
-                  >
+                  <p className={`text-xs font-montserrat font-semibold ${day.isWeekend ? 'text-gray-400' : 'text-dark-text'}`}>
                     {day.label}
                   </p>
                   <p className="text-[10px] text-mid-gray">{day.dayNum}.</p>
@@ -522,7 +652,6 @@ export default function ReportsPage() {
               </div>
             ))}
           </div>
-          {/* Weekly total */}
           <div className="border-t border-gray-200 pt-3 mt-4 flex items-center justify-between">
             <span className="font-montserrat font-bold text-deep-blue">14 napos összesen</span>
             <span className="font-montserrat font-bold text-deep-blue">

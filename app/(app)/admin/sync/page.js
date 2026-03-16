@@ -4,6 +4,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
+const SYNC_SCHEDULES = [
+  { value: '0 5 * * *', label: '05:00' },
+  { value: '0 6 * * *', label: '06:00' },
+  { value: '0 7 * * *', label: '07:00' },
+  { value: '0 8 * * *', label: '08:00' },
+  { value: '0 12 * * *', label: '12:00' },
+  { value: '0 18 * * *', label: '18:00' },
+  { value: '0 22 * * *', label: '22:00' },
+];
+
 export default function AdminSyncPage() {
   const supabase = createClient();
   const router = useRouter();
@@ -15,8 +25,16 @@ export default function AdminSyncPage() {
   const [projects, setProjects] = useState([]);
   const [searchFilter, setSearchFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('all');
   const [showAddForm, setShowAddForm] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
+  const [expandedProject, setExpandedProject] = useState(null);
+
+  // Schedule settings
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
+  const [syncSchedule, setSyncSchedule] = useState('0 6 * * *');
+  const [lastSyncAt, setLastSyncAt] = useState(null);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   useEffect(() => {
     async function init() {
@@ -53,9 +71,27 @@ export default function AdminSyncPage() {
     setProjects(data || []);
   }, []);
 
+  const loadSettings = useCallback(async () => {
+    const { data } = await supabase
+      .from('app_settings')
+      .select('key, value')
+      .in('key', ['auto_sync_enabled', 'sync_schedule', 'last_sync_at']);
+
+    if (data) {
+      data.forEach((s) => {
+        if (s.key === 'auto_sync_enabled') setAutoSyncEnabled(s.value === 'true');
+        if (s.key === 'sync_schedule') setSyncSchedule(s.value || '0 6 * * *');
+        if (s.key === 'last_sync_at') setLastSyncAt(s.value);
+      });
+    }
+  }, []);
+
   useEffect(() => {
-    if (profile) loadProjects();
-  }, [profile, loadProjects]);
+    if (profile) {
+      loadProjects();
+      loadSettings();
+    }
+  }, [profile, loadProjects, loadSettings]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -74,17 +110,44 @@ export default function AdminSyncPage() {
         return;
       }
 
-      setMessage({
-        type: 'success',
-        text: `Sikeres szinkronizálás! ${data.synced} projekt szinkronizálva.\n` +
-          `Értékesítés: ${data.sales_count} db | Partnerek: ${data.partner_count} db\n` +
-          `Duplikáció szűrve: ${data.duplicates_removed} db | Összesen: ${data.total_found} egyedi projekt`,
-      });
+      let details = `Sikeres szinkronizálás! ${data.synced} projekt szinkronizálva.\n` +
+        `Értékesítés: ${data.sales_count} db | Partnerek: ${data.partner_count} db\n` +
+        `Duplikáció szűrve: ${data.duplicates_removed} db | Összesen: ${data.total_found} egyedi projekt`;
+      if (data.errors > 0) details += `\nHibák: ${data.errors}`;
+      if (data.sales_mapping) {
+        details += `\n\nÉrtékesítés oszlopok: [${data.sales_mapping.headers?.join(', ')}]`;
+        details += `\n  Név oszlop: "${data.sales_mapping.nameCol}" | ID oszlop: "${data.sales_mapping.idCol}" | Kategória: "${data.sales_mapping.catCol}"`;
+      }
+      if (data.partner_mapping) {
+        details += `\nPartner oszlopok: [${data.partner_mapping.headers?.join(', ')}]`;
+        details += `\n  Név oszlop: "${data.partner_mapping.nameCol}" | ID oszlop: "${data.partner_mapping.idCol}" | Kategória: "${data.partner_mapping.catCol}"`;
+      }
+      setMessage({ type: 'success', text: details });
       loadProjects();
+      loadSettings();
     } catch {
       setMessage({ type: 'error', text: 'Hálózati hiba történt.' });
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const saveScheduleSettings = async () => {
+    setSavingSettings(true);
+    try {
+      await supabase.from('app_settings').upsert(
+        { key: 'auto_sync_enabled', value: autoSyncEnabled ? 'true' : 'false' },
+        { onConflict: 'key' }
+      );
+      await supabase.from('app_settings').upsert(
+        { key: 'sync_schedule', value: syncSchedule },
+        { onConflict: 'key' }
+      );
+      setMessage({ type: 'success', text: 'Ütemezési beállítások mentve!' });
+    } catch {
+      setMessage({ type: 'error', text: 'Hiba a beállítások mentésekor.' });
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -113,6 +176,7 @@ export default function AdminSyncPage() {
       minicrm_id,
       name,
       category_name: 'Manuális',
+      source: 'manual',
       status: 'active',
       last_synced_at: new Date().toISOString(),
     });
@@ -128,25 +192,39 @@ export default function AdminSyncPage() {
     loadProjects();
   };
 
+  const sourceLabel = (source) => {
+    switch (source) {
+      case 'minicrm_sales': return 'MiniCRM Értékesítés';
+      case 'minicrm_partner': return 'MiniCRM Partner';
+      case 'manual': return 'Manuális';
+      default: return source || 'MiniCRM';
+    }
+  };
+
+  const sourceColor = (source) => {
+    switch (source) {
+      case 'minicrm_sales': return 'bg-blue-100 text-blue-700';
+      case 'minicrm_partner': return 'bg-purple-100 text-purple-700';
+      case 'manual': return 'bg-amber-100 text-amber-700';
+      default: return 'bg-gray-100 text-gray-600';
+    }
+  };
+
   const filteredProjects = projects.filter((p) => {
     const matchesSearch = searchFilter
       ? p.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
         (p.category_name && p.category_name.toLowerCase().includes(searchFilter.toLowerCase()))
       : true;
-    const matchesStatus =
-      statusFilter === 'all' ||
-      p.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
+    const matchesSource = sourceFilter === 'all' ||
+      (sourceFilter === 'minicrm' ? (p.source === 'minicrm_sales' || p.source === 'minicrm_partner' || !p.source) : p.source === sourceFilter);
+    return matchesSearch && matchesStatus && matchesSource;
   });
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <svg
-          className="spinner w-10 h-10 text-medium-blue"
-          viewBox="0 0 24 24"
-          fill="none"
-        >
+        <svg className="spinner w-10 h-10 text-medium-blue" viewBox="0 0 24 24" fill="none">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
         </svg>
@@ -170,12 +248,18 @@ export default function AdminSyncPage() {
           </div>
           <div className="flex-1">
             <h3 className="text-lg font-montserrat font-semibold text-deep-blue mb-1">
-              Google Sheets adatforrás
+              MiniCRM adatforrás
             </h3>
-            <p className="text-sm text-mid-gray mb-4">
-              A projektek automatikusan letöltődnek a közzétett Google Sheets dokumentumból.
+            <p className="text-sm text-mid-gray mb-2">
+              A projektek a közzétett Google Sheets dokumentumból töltődnek le (MiniCRM export).
               Az értékesítési és partner projektek deduplikálva kerülnek importálásra.
+              Az összes MiniCRM mező eltárolásra kerül.
             </p>
+            {lastSyncAt && (
+              <p className="text-xs text-mid-gray mb-3">
+                Utolsó szinkronizálás: <span className="font-semibold">{new Date(lastSyncAt).toLocaleString('hu-HU')}</span>
+              </p>
+            )}
             <button
               onClick={handleSync}
               disabled={syncing}
@@ -213,6 +297,61 @@ export default function AdminSyncPage() {
           >
             <pre className="whitespace-pre-wrap font-opensans">{message.text}</pre>
           </div>
+        )}
+      </div>
+
+      {/* Schedule settings */}
+      <div className="card mb-6">
+        <h3 className="text-lg font-montserrat font-semibold text-deep-blue mb-4">
+          Automatikus szinkronizálás ütemezése
+        </h3>
+        <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+          <div>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={autoSyncEnabled}
+                  onChange={(e) => setAutoSyncEnabled(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-checked:bg-medium-blue rounded-full transition-colors" />
+                <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
+              </div>
+              <span className="text-sm font-semibold text-dark-text">
+                Automatikus napi szinkronizálás
+              </span>
+            </label>
+          </div>
+          {autoSyncEnabled && (
+            <div>
+              <label className="text-xs font-semibold text-mid-gray uppercase tracking-wider block mb-1">
+                Időpont (UTC)
+              </label>
+              <select
+                value={syncSchedule}
+                onChange={(e) => setSyncSchedule(e.target.value)}
+                className="input-field !w-auto !py-2 text-sm"
+              >
+                {SYNC_SCHEDULES.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <button
+            onClick={saveScheduleSettings}
+            disabled={savingSettings}
+            className="btn-secondary !py-2 !px-4 text-sm"
+          >
+            {savingSettings ? 'Mentés...' : 'Beállítások mentése'}
+          </button>
+        </div>
+        {autoSyncEnabled && (
+          <p className="text-xs text-mid-gray mt-3">
+            A szinkronizálás naponta egyszer automatikusan fut a megadott időpontban.
+            A Vercel Cron funkciót használja. A beállítás módosításához frissítsd a vercel.json fájlt is.
+          </p>
         )}
       </div>
 
@@ -259,7 +398,7 @@ export default function AdminSyncPage() {
         )}
         {!showAddForm && (
           <p className="text-sm text-mid-gray">
-            Ha egy projekt nem szerepel a Google Sheets-ben, itt manuálisan is hozzáadhatod.
+            A manuálisan hozzáadott projektek elkülönülnek a MiniCRM-ből importáltaktól, és a szinkronizálás nem érinti őket.
           </p>
         )}
       </div>
@@ -271,7 +410,6 @@ export default function AdminSyncPage() {
             Projektek ({filteredProjects.length} / {projects.length})
           </h3>
           <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-            {/* Search */}
             <div className="relative flex-1 md:w-64">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg className="w-4 h-4 text-mid-gray" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -286,7 +424,17 @@ export default function AdminSyncPage() {
                 className="input-field !pl-9 !py-2 text-sm"
               />
             </div>
-            {/* Status filter */}
+            <select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+              className="input-field !py-2 text-sm !w-auto"
+            >
+              <option value="all">Minden forrás</option>
+              <option value="minicrm">MiniCRM (összes)</option>
+              <option value="minicrm_sales">MiniCRM Értékesítés</option>
+              <option value="minicrm_partner">MiniCRM Partner</option>
+              <option value="manual">Manuális</option>
+            </select>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -314,9 +462,12 @@ export default function AdminSyncPage() {
                     Projekt neve
                   </th>
                   <th className="pb-3 text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider">
+                    Forrás
+                  </th>
+                  <th className="pb-3 text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider hidden md:table-cell">
                     Kategória
                   </th>
-                  <th className="pb-3 text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider">
+                  <th className="pb-3 text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider hidden md:table-cell">
                     Utolsó szinkron
                   </th>
                   <th className="pb-3 text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider">
@@ -326,21 +477,54 @@ export default function AdminSyncPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredProjects.map((p) => (
-                  <tr key={p.id} className="hover:bg-pale-blue/50">
+                  <tr
+                    key={p.id}
+                    className={`hover:bg-pale-blue/50 cursor-pointer ${expandedProject === p.id ? 'bg-pale-blue/30' : ''}`}
+                    onClick={() => setExpandedProject(expandedProject === p.id ? null : p.id)}
+                  >
                     <td className="py-3 text-sm font-opensans text-dark-text">
-                      {p.name}
+                      <div className="flex items-center gap-1">
+                        <svg
+                          className={`w-3 h-3 text-mid-gray transition-transform flex-shrink-0 ${expandedProject === p.id ? 'rotate-90' : ''}`}
+                          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                        </svg>
+                        {p.name}
+                      </div>
+                      {expandedProject === p.id && p.raw_data && (
+                        <div className="mt-2 ml-4 p-3 bg-gray-50 rounded-lg text-xs space-y-1" onClick={(e) => e.stopPropagation()}>
+                          <p className="font-montserrat font-bold text-mid-gray uppercase tracking-wider mb-2">MiniCRM adatok</p>
+                          {Object.entries(p.raw_data).map(([key, val]) => (
+                            <div key={key} className="flex gap-2">
+                              <span className="text-mid-gray font-semibold min-w-[120px]">{key}:</span>
+                              <span className="text-dark-text">{val}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {expandedProject === p.id && !p.raw_data && (
+                        <div className="mt-2 ml-4 p-3 bg-gray-50 rounded-lg text-xs text-mid-gray" onClick={(e) => e.stopPropagation()}>
+                          Nincs további MiniCRM adat (manuálisan hozzáadott projekt).
+                        </div>
+                      )}
                     </td>
-                    <td className="py-3 text-sm font-opensans text-mid-gray">
+                    <td className="py-3">
+                      <span className={`text-xs font-montserrat font-semibold px-2 py-0.5 rounded-full ${sourceColor(p.source)}`}>
+                        {sourceLabel(p.source)}
+                      </span>
+                    </td>
+                    <td className="py-3 text-sm font-opensans text-mid-gray hidden md:table-cell">
                       {p.category_name || '-'}
                     </td>
-                    <td className="py-3 text-sm font-opensans text-mid-gray">
+                    <td className="py-3 text-sm font-opensans text-mid-gray hidden md:table-cell">
                       {p.last_synced_at
                         ? new Date(p.last_synced_at).toLocaleString('hu-HU')
                         : '-'}
                     </td>
                     <td className="py-3">
                       <button
-                        onClick={() => toggleStatus(p)}
+                        onClick={(e) => { e.stopPropagation(); toggleStatus(p); }}
                         className={`text-xs font-montserrat font-semibold px-3 py-1 rounded-full transition-all ${
                           p.status === 'active'
                             ? 'bg-green-100 text-green-700 hover:bg-green-200'

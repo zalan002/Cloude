@@ -22,7 +22,7 @@ export default async function DashboardPage() {
   // Today's entries
   const { data: todayEntries } = await supabase
     .from('time_entries')
-    .select('*, minicrm_projects(name)')
+    .select('*, minicrm_projects(name), tasks(name)')
     .eq('user_id', user.id)
     .eq('entry_date', today)
     .order('created_at', { ascending: false });
@@ -185,6 +185,11 @@ export default async function DashboardPage() {
                   <p className="font-montserrat font-semibold text-dark-text text-sm">
                     {entry.minicrm_projects?.name || 'Ismeretlen projekt'}
                   </p>
+                  {entry.tasks?.name && (
+                    <p className="text-xs text-medium-blue mt-0.5">
+                      {entry.tasks.name}
+                    </p>
+                  )}
                   {entry.description && (
                     <p className="text-sm text-mid-gray mt-0.5 truncate">
                       {entry.description}

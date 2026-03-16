@@ -23,7 +23,7 @@ export default function MyEntriesPage() {
 
     const { data } = await supabase
       .from('time_entries')
-      .select('*, minicrm_projects(name)')
+      .select('*, minicrm_projects(name), tasks(name)')
       .eq('user_id', user.id)
       .gte('entry_date', fourteenDaysAgo)
       .order('entry_date', { ascending: false })
@@ -171,6 +171,11 @@ export default function MyEntriesPage() {
                       <p className="font-montserrat font-semibold text-dark-text text-sm">
                         {entry.minicrm_projects?.name || 'Ismeretlen projekt'}
                       </p>
+                      {entry.tasks?.name && (
+                        <p className="text-xs text-medium-blue mt-0.5">
+                          {entry.tasks.name}
+                        </p>
+                      )}
                       {entry.description && (
                         <p className="text-sm text-mid-gray mt-0.5 truncate">
                           {entry.description}

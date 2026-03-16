@@ -4,6 +4,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
+const DEPARTMENTS = [
+  'Értékesítés',
+  'Jog',
+  'Asszisztencia',
+  'Könyvelés',
+  'Munkaügy',
+];
+
 export default function AdminUsersPage() {
   const supabase = createClient();
   const router = useRouter();
@@ -100,6 +108,20 @@ export default function AdminUsersPage() {
     loadUsers();
   };
 
+  const updateDepartment = async (user, department) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ department: department || null })
+      .eq('id', user.id);
+
+    if (error) {
+      alert('Hiba: ' + error.message);
+      return;
+    }
+
+    loadUsers();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -150,6 +172,9 @@ export default function AdminUsersPage() {
                   Email
                 </th>
                 <th className="pb-3 text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider">
+                  Részleg
+                </th>
+                <th className="pb-3 text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider">
                   Szerepkör
                 </th>
                 <th className="pb-3 text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider">
@@ -172,6 +197,18 @@ export default function AdminUsersPage() {
                   </td>
                   <td className="py-3 text-sm font-opensans text-mid-gray">
                     {u.email}
+                  </td>
+                  <td className="py-3">
+                    <select
+                      value={u.department || ''}
+                      onChange={(e) => updateDepartment(u, e.target.value)}
+                      className="text-xs font-montserrat font-semibold px-2 py-1 rounded-lg border border-gray-200 bg-white text-dark-text focus:outline-none focus:ring-1 focus:ring-medium-blue"
+                    >
+                      <option value="">— Nincs —</option>
+                      {DEPARTMENTS.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
                   </td>
                   <td className="py-3">
                     <button
@@ -218,6 +255,19 @@ export default function AdminUsersPage() {
                 </p>
                 <p className="text-xs text-mid-gray">{u.email}</p>
               </div>
+            </div>
+            <div className="mb-3">
+              <label className="text-xs text-mid-gray font-montserrat block mb-1">Részleg</label>
+              <select
+                value={u.department || ''}
+                onChange={(e) => updateDepartment(u, e.target.value)}
+                className="text-xs font-montserrat font-semibold px-2 py-1 rounded-lg border border-gray-200 bg-white text-dark-text focus:outline-none focus:ring-1 focus:ring-medium-blue w-full"
+              >
+                <option value="">— Nincs —</option>
+                {DEPARTMENTS.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
             </div>
             <div className="flex items-center gap-2">
               <button
