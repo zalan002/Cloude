@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 
 const SYNC_SCHEDULES = [
   { value: '0 5 * * *', label: '05:00' },
@@ -107,6 +108,7 @@ export default function AdminSyncPage() {
 
       if (!res.ok) {
         setMessage({ type: 'error', text: 'A szinkronizálás sikertelen. Kérjük, vegye fel a kapcsolatot: CONSORTIO@traininghungary.com' });
+        reportError({ page: 'Szinkronizálás', action: 'Manuális szinkronizálás', error: data.error || `HTTP ${res.status}` });
         return;
       }
 
@@ -125,8 +127,9 @@ export default function AdminSyncPage() {
       setMessage({ type: 'success', text: details });
       loadProjects();
       loadSettings();
-    } catch {
+    } catch (err) {
       setMessage({ type: 'error', text: 'A szinkronizálás sikertelen. Kérjük, vegye fel a kapcsolatot: CONSORTIO@traininghungary.com' });
+      reportError({ page: 'Szinkronizálás', action: 'Manuális szinkronizálás', error: err?.message || 'Hálózati hiba' });
     } finally {
       setSyncing(false);
     }
@@ -144,8 +147,9 @@ export default function AdminSyncPage() {
         { onConflict: 'key' }
       );
       setMessage({ type: 'success', text: 'Mentve!' });
-    } catch {
+    } catch (err) {
       setMessage({ type: 'error', text: 'Hiba történt a mentés során. Kérjük, vegye fel a kapcsolatot: CONSORTIO@traininghungary.com' });
+      reportError({ page: 'Szinkronizálás', action: 'Ütemezési beállítások mentése', error: err?.message || 'Ismeretlen hiba' });
     } finally {
       setSavingSettings(false);
     }
@@ -183,6 +187,7 @@ export default function AdminSyncPage() {
 
     if (error) {
       setMessage({ type: 'error', text: 'Hiba: ' + error.message });
+      reportError({ page: 'Szinkronizálás', action: 'Manuális projekt hozzáadása', error: error.message });
       return;
     }
 

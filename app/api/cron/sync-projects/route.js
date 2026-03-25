@@ -1,46 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
-import nodemailer from 'nodemailer';
 import { NextResponse } from 'next/server';
 import { syncProjects } from '@/app/api/projects/sync/route';
+import { sendErrorAlert } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
-
-const ERROR_EMAIL = 'CONSORTIO@traininghungary.com';
-
-async function sendErrorEmail(errorMessage) {
-  const apiKey = process.env.MANDRILL_API_KEY;
-  if (!apiKey) {
-    console.warn('MANDRILL_API_KEY nincs beállítva, hiba email nem küldhető.');
-    return;
-  }
-
-  try {
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.mandrillapp.com',
-      port: 587,
-      auth: {
-        user: 'Training Hungary Kft.',
-        pass: apiKey,
-      },
-    });
-
-    await transporter.sendMail({
-      from: 'riport@traininghungary.com',
-      to: ERROR_EMAIL,
-      subject: 'CONSORTIO - Szinkronizálási hiba',
-      html: `
-        <h2>Automatikus szinkronizálási hiba</h2>
-        <p>Az automatikus MiniCRM szinkronizálás hibát dobott:</p>
-        <pre style="background:#f5f5f5;padding:12px;border-radius:6px;">${errorMessage}</pre>
-        <p>Időpont: ${new Date().toLocaleString('hu-HU', { timeZone: 'Europe/Budapest' })}</p>
-        <hr>
-        <p style="color:#888;font-size:12px;">Ez egy automatikus értesítés a CONSORTIO rendszerből.</p>
-      `,
-    });
-  } catch (emailErr) {
-    console.error('Hiba email küldési hiba:', emailErr);
-  }
-}
 
 // Vercel Cron calls this endpoint
 export async function GET(request) {
@@ -87,7 +50,11 @@ export async function GET(request) {
     });
   } catch (err) {
     console.error('Cron sync hiba:', err);
-    await sendErrorEmail(err.message);
+    await sendErrorAlert({
+      subject: 'Automatikus szinkronizálási hiba',
+      message: 'Az automatikus MiniCRM szinkronizálás hibát dobott.',
+      context: err.message,
+    });
     return NextResponse.json(
       { error: 'Cron szinkronizálási hiba: ' + err.message },
       { status: 500 }

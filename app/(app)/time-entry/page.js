@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import ProjectSelector from '@/components/ProjectSelector';
 import TaskSelector from '@/components/TaskSelector';
+import { reportError } from '@/lib/reportError';
 
 export default function TimeEntryPage() {
   const router = useRouter();
@@ -82,6 +83,7 @@ export default function TimeEntryPage() {
 
       if (insertError) {
         setError('Hiba a mentés során: ' + insertError.message);
+        reportError({ page: 'Időbejegyzés', action: 'Időbejegyzés mentése', error: insertError.message });
         return;
       }
 
@@ -89,8 +91,9 @@ export default function TimeEntryPage() {
       setTimeout(() => {
         router.push('/my-entries');
       }, 1500);
-    } catch {
+    } catch (err) {
       setError('Váratlan hiba történt.');
+      reportError({ page: 'Időbejegyzés', action: 'Időbejegyzés mentése', error: err?.message || 'Ismeretlen hiba' });
     } finally {
       setLoading(false);
     }

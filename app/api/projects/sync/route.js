@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { sendErrorAlert } from '@/lib/email';
 
 const CSV_URLS = {
   sales: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTkHbDkXhzaWeR2caj-WyW7F-9ZTgMKzB-acV0jV27LbzAVC-D0dEYjgwGURMkAi8i_PCrDYZrwNmDr/pub?gid=1984680240&single=true&output=csv',
@@ -405,6 +406,11 @@ export async function POST() {
     return NextResponse.json(result);
   } catch (err) {
     console.error('Sync hiba:', err);
+    await sendErrorAlert({
+      subject: 'Szinkronizálási hiba',
+      message: 'A manuális MiniCRM szinkronizálás hibát dobott.',
+      context: err.message,
+    });
     return NextResponse.json(
       { error: 'Szinkronizálási hiba: ' + err.message },
       { status: 500 }
