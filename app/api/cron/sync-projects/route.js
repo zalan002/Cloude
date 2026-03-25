@@ -1,8 +1,38 @@
 import { createClient } from '@supabase/supabase-js';
+import { Resend } from 'resend';
 import { NextResponse } from 'next/server';
 import { syncProjects } from '@/app/api/projects/sync/route';
 
 export const dynamic = 'force-dynamic';
+
+const ERROR_EMAIL = 'CONSORTIO@traininghungary.com';
+
+async function sendErrorEmail(errorMessage) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn('RESEND_API_KEY nincs beállítva, hiba email nem küldhető.');
+    return;
+  }
+
+  try {
+    const resend = new Resend(apiKey);
+    await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || 'noreply@traininghungary.com',
+      to: ERROR_EMAIL,
+      subject: 'CONSORTIO - Szinkronizálási hiba',
+      html: `
+        <h2>Automatikus szinkronizálási hiba</h2>
+        <p>Az automatikus MiniCRM szinkronizálás hibát dobott:</p>
+        <pre style="background:#f5f5f5;padding:12px;border-radius:6px;">${errorMessage}</pre>
+        <p>Időpont: ${new Date().toLocaleString('hu-HU', { timeZone: 'Europe/Budapest' })}</p>
+        <hr>
+        <p style="color:#888;font-size:12px;">Ez egy automatikus értesítés a CONSORTIO rendszerből.</p>
+      `,
+    });
+  } catch (emailErr) {
+    console.error('Hiba email küldési hiba:', emailErr);
+  }
+}
 
 // Vercel Cron calls this endpoint
 export async function GET(request) {
@@ -49,6 +79,7 @@ export async function GET(request) {
     });
   } catch (err) {
     console.error('Cron sync hiba:', err);
+    await sendErrorEmail(err.message);
     return NextResponse.json(
       { error: 'Cron szinkronizálási hiba: ' + err.message },
       { status: 500 }
