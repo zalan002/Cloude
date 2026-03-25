@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 
 const DEPARTMENTS = [
   'Értékesítés',
@@ -82,6 +83,7 @@ export default function AdminUsersPage() {
 
     if (error) {
       alert('Hiba: ' + error.message);
+      reportError({ page: 'Felhasználók kezelése', action: 'Szerepkör módosítása', error: error.message });
       return;
     }
 
@@ -102,6 +104,7 @@ export default function AdminUsersPage() {
 
     if (error) {
       alert('Hiba: ' + error.message);
+      reportError({ page: 'Felhasználók kezelése', action: 'Felhasználó aktiválás/deaktiválás', error: error.message });
       return;
     }
 
@@ -116,6 +119,7 @@ export default function AdminUsersPage() {
 
     if (error) {
       alert('Hiba: ' + error.message);
+      reportError({ page: 'Felhasználók kezelése', action: 'Részleg módosítása', error: error.message });
       return;
     }
 

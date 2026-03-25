@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 
 const CATEGORIES = [
   'ÉRTÉKESÍTÉS',
@@ -84,6 +85,7 @@ export default function AdminTasksPage() {
 
     if (error) {
       setMessage({ type: 'error', text: 'Hiba: ' + error.message });
+      reportError({ page: 'Feladatok kezelése', action: 'Feladat hozzáadása', error: error.message });
       return;
     }
 
@@ -131,6 +133,7 @@ export default function AdminTasksPage() {
     const { error } = await supabase.from('tasks').delete().eq('id', task.id);
     if (error) {
       setMessage({ type: 'error', text: 'Hiba a törlés során: ' + error.message });
+      reportError({ page: 'Feladatok kezelése', action: 'Feladat törlése', error: error.message });
       return;
     }
     setMessage({ type: 'success', text: `"${task.name}" feladat sikeresen törölve!` });

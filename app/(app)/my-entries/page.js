@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import Link from 'next/link';
 
 export default function MyEntriesPage() {
@@ -47,6 +48,7 @@ export default function MyEntriesPage() {
 
     if (error) {
       alert('Hiba a törlés során: ' + error.message);
+      reportError({ page: 'Bejegyzéseim', action: 'Bejegyzés törlése', error: error.message });
       return;
     }
 

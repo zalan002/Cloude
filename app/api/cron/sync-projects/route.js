@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { syncProjects } from '@/app/api/projects/sync/route';
+import { sendErrorAlert } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +50,11 @@ export async function GET(request) {
     });
   } catch (err) {
     console.error('Cron sync hiba:', err);
+    await sendErrorAlert({
+      subject: 'Automatikus szinkronizálási hiba',
+      message: 'Az automatikus MiniCRM szinkronizálás hibát dobott.',
+      context: err.message,
+    });
     return NextResponse.json(
       { error: 'Cron szinkronizálási hiba: ' + err.message },
       { status: 500 }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 
 const SYNC_SCHEDULES = [
   { value: '0 5 * * *', label: '05:00' },
@@ -106,7 +107,8 @@ export default function AdminSyncPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setMessage({ type: 'error', text: data.error || 'Szinkronizálási hiba.' });
+        setMessage({ type: 'error', text: 'A szinkronizálás sikertelen. Kérjük, vegye fel a kapcsolatot: CONSORTIO@traininghungary.com' });
+        reportError({ page: 'Szinkronizálás', action: 'Manuális szinkronizálás', error: data.error || `HTTP ${res.status}` });
         return;
       }
 
@@ -125,8 +127,9 @@ export default function AdminSyncPage() {
       setMessage({ type: 'success', text: details });
       loadProjects();
       loadSettings();
-    } catch {
-      setMessage({ type: 'error', text: 'Hálózati hiba történt.' });
+    } catch (err) {
+      setMessage({ type: 'error', text: 'A szinkronizálás sikertelen. Kérjük, vegye fel a kapcsolatot: CONSORTIO@traininghungary.com' });
+      reportError({ page: 'Szinkronizálás', action: 'Manuális szinkronizálás', error: err?.message || 'Hálózati hiba' });
     } finally {
       setSyncing(false);
     }
@@ -143,9 +146,10 @@ export default function AdminSyncPage() {
         { key: 'sync_schedule', value: syncSchedule },
         { onConflict: 'key' }
       );
-      setMessage({ type: 'success', text: 'Ütemezési beállítások mentve!' });
-    } catch {
-      setMessage({ type: 'error', text: 'Hiba a beállítások mentésekor.' });
+      setMessage({ type: 'success', text: 'Mentve!' });
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Hiba történt a mentés során. Kérjük, vegye fel a kapcsolatot: CONSORTIO@traininghungary.com' });
+      reportError({ page: 'Szinkronizálás', action: 'Ütemezési beállítások mentése', error: err?.message || 'Ismeretlen hiba' });
     } finally {
       setSavingSettings(false);
     }
@@ -183,6 +187,7 @@ export default function AdminSyncPage() {
 
     if (error) {
       setMessage({ type: 'error', text: 'Hiba: ' + error.message });
+      reportError({ page: 'Szinkronizálás', action: 'Manuális projekt hozzáadása', error: error.message });
       return;
     }
 
@@ -349,8 +354,7 @@ export default function AdminSyncPage() {
         </div>
         {autoSyncEnabled && (
           <p className="text-xs text-mid-gray mt-3">
-            A szinkronizálás naponta egyszer automatikusan fut a megadott időpontban.
-            A Vercel Cron funkciót használja. A beállítás módosításához frissítsd a vercel.json fájlt is.
+            A szinkronizálás naponta egyszer automatikusan fut (06:00 UTC).
           </p>
         )}
       </div>
