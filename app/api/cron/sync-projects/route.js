@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { NextResponse } from 'next/server';
 import { syncProjects } from '@/app/api/projects/sync/route';
 
@@ -8,16 +8,24 @@ export const dynamic = 'force-dynamic';
 const ERROR_EMAIL = 'CONSORTIO@traininghungary.com';
 
 async function sendErrorEmail(errorMessage) {
-  const apiKey = process.env.RESEND_API_KEY;
+  const apiKey = process.env.MANDRILL_API_KEY;
   if (!apiKey) {
-    console.warn('RESEND_API_KEY nincs beállítva, hiba email nem küldhető.');
+    console.warn('MANDRILL_API_KEY nincs beállítva, hiba email nem küldhető.');
     return;
   }
 
   try {
-    const resend = new Resend(apiKey);
-    await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || 'noreply@traininghungary.com',
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.mandrillapp.com',
+      port: 587,
+      auth: {
+        user: 'Training Hungary Kft.',
+        pass: apiKey,
+      },
+    });
+
+    await transporter.sendMail({
+      from: 'riport@traininghungary.com',
       to: ERROR_EMAIL,
       subject: 'CONSORTIO - Szinkronizálási hiba',
       html: `
