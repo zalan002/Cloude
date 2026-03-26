@@ -48,13 +48,6 @@ export default async function DashboardPage() {
     .gte('entry_date', weekAgo)
     .lte('entry_date', today);
 
-  // All active projects
-  const { data: activeProjects } = await supabase
-    .from('minicrm_projects')
-    .select('*')
-    .eq('status', 'active')
-    .order('name');
-
   const todayHours = (todayEntries || []).reduce(
     (sum, e) => sum + Number(e.hours),
     0
@@ -138,41 +131,6 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
-
-      {/* Quick entry block */}
-      {activeProjects && activeProjects.length > 0 ? (
-        <div className="mb-8">
-          <h2 className="text-lg font-montserrat font-semibold text-deep-blue mb-4">
-            Gyors bejegyzés
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {activeProjects.map((project) => (
-              <Link
-                key={project.id}
-                href={`/time-entry?project=${project.id}`}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-opensans text-dark-text hover:border-medium-blue hover:text-medium-blue hover:shadow-sm transition-all duration-200"
-              >
-                <svg className="w-4 h-4 text-medium-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-                {project.name}
-              </Link>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="card mb-8 text-center py-12">
-          <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
-          </svg>
-          <p className="text-mid-gray mb-4">Még nincsenek projektek szinkronizálva.</p>
-          {profile?.role === 'admin' && (
-            <Link href="/admin/sync" className="btn-primary inline-block">
-              Projektek szinkronizálása
-            </Link>
-          )}
-        </div>
-      )}
 
       {/* Today's entries */}
       <div>
