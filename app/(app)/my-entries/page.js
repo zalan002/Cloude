@@ -9,6 +9,7 @@ export default function MyEntriesPage() {
   const supabase = createClient();
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(null);
 
   const loadEntries = useCallback(async () => {
     setLoading(true);
@@ -39,8 +40,10 @@ export default function MyEntriesPage() {
   }, [loadEntries]);
 
   const handleDelete = async (entryId) => {
+    if (deleting) return;
     if (!confirm('Biztosan törölni szeretnéd ezt a bejegyzést?')) return;
 
+    setDeleting(entryId);
     const { error } = await supabase
       .from('time_entries')
       .delete()
@@ -49,9 +52,11 @@ export default function MyEntriesPage() {
     if (error) {
       alert('Hiba a törlés során: ' + error.message);
       reportError({ page: 'Bejegyzéseim', action: 'Bejegyzés törlése', error: error.message });
+      setDeleting(null);
       return;
     }
 
+    setDeleting(null);
     loadEntries();
   };
 
@@ -190,7 +195,8 @@ export default function MyEntriesPage() {
                       </span>
                       <button
                         onClick={() => handleDelete(entry.id)}
-                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all duration-200"
+                        disabled={deleting === entry.id}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none"
                         title="Bejegyzés törlése"
                       >
                         <svg

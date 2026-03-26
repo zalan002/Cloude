@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 
@@ -13,6 +14,10 @@ export default async function DashboardPage() {
     .select('*')
     .eq('id', user.id)
     .single();
+
+  if (!profile) {
+    redirect('/login');
+  }
 
   const today = new Date().toISOString().split('T')[0];
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)

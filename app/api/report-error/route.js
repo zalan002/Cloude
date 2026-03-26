@@ -32,12 +32,13 @@ export async function POST(request) {
     const body = await request.json();
     const { page, action, error } = body;
 
-    const userName = user?.email || 'Ismeretlen felhasználó';
+    const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const userName = esc(user?.email || 'Ismeretlen felhasználó');
 
     await sendErrorAlert({
-      subject: `Hiba: ${action}`,
-      message: `<strong>Felhasználó:</strong> ${userName}<br><strong>Oldal:</strong> ${page}<br><strong>Művelet:</strong> ${action}`,
-      context: error,
+      subject: `Hiba: ${esc(action)}`,
+      message: `<strong>Felhasználó:</strong> ${userName}<br><strong>Oldal:</strong> ${esc(page)}<br><strong>Művelet:</strong> ${esc(action)}`,
+      context: esc(error),
     });
 
     return NextResponse.json({ success: true });
