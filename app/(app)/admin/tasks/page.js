@@ -6,9 +6,10 @@ import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 
 const CATEGORIES = [
+  'EGYÉB FELADATOK',
   'ÉRTÉKESÍTÉS',
   'JOG',
-  'ASSZISZTENCIA',
+  'ASSZISZTENCIA/FELSZÁMOLÁS',
   'KÖNYVELÉS',
   'MUNKAÜGY',
 ];
@@ -27,6 +28,7 @@ export default function AdminTasksPage() {
   const [searchFilter, setSearchFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   useEffect(() => {
     async function init() {
@@ -140,6 +142,39 @@ export default function AdminTasksPage() {
     loadTasks();
   };
 
+  const handleBulkReplace = async (newTasks) => {
+    if (bulkLoading) return;
+    setBulkLoading(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch('/api/tasks/bulk-replace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasks: newTasks }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessage({ type: 'error', text: data.error || 'Hiba a tömeges feltöltés során.' });
+        reportError({ page: 'Feladatok kezelése', action: 'Tömeges feltöltés', error: data.error });
+        return;
+      }
+
+      setMessage({
+        type: 'success',
+        text: `Tömeges feltöltés kész! ${data.deleted} törölve, ${data.archived} archiválva, ${data.inserted} új feladat beszúrva.`,
+      });
+      loadTasks();
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Váratlan hiba: ' + err.message });
+      reportError({ page: 'Feladatok kezelése', action: 'Tömeges feltöltés', error: err.message });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   // Get unique categories from tasks
   const existingCategories = [...new Set(tasks.map((t) => t.category).filter(Boolean))];
 
@@ -191,15 +226,49 @@ export default function AdminTasksPage() {
             Új feladat hozzáadása
           </h3>
           {!showAddForm && (
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="btn-secondary text-sm !px-4 !py-2 flex items-center gap-1"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              Új feladat
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="btn-secondary text-sm !px-4 !py-2 flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                Új feladat
+              </button>
+              <label
+                className={`btn-secondary text-sm !px-4 !py-2 flex items-center gap-1 cursor-pointer ${bulkLoading ? 'opacity-50 pointer-events-none' : ''}`}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+                {bulkLoading ? 'Feltöltés...' : 'JSON feltöltés'}
+                <input
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      const text = await file.text();
+                      const json = JSON.parse(text);
+                      const allTasks = [];
+                      for (const group of json) {
+                        for (const name of group.name) {
+                          allTasks.push({ name, category: group.category, status: 'active' });
+                        }
+                      }
+                      if (!confirm(`${allTasks.length} feladat feltöltése? Ez törli az összes meglévő feladatot!`)) return;
+                      handleBulkReplace(allTasks);
+                    } catch (err) {
+                      setMessage({ type: 'error', text: 'Érvénytelen JSON fájl: ' + err.message });
+                    }
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
           )}
         </div>
         {showAddForm ? (

@@ -1,0 +1,138 @@
+[
+  {
+    "category": "EGYÉB FELADATOK",
+    "name": [
+      "napi ügyek átbeszélése-meeting",
+      "Tamástól kapott külön feladat",
+      "Egyéb",
+      "Irattároló aktualizálása",
+      "Iratmegsemmisítés",
+      "Iroda működéséhez szükséges anyagok beszerzése",
+      "Ügyfelek fogadása, kiszolgálása",
+      "Tárgyaló rendbetétele",
+      "Üzemeltetéssel való kapcsolattartás",
+      "Oktatások szervezése, oktatáson való részvétel"
+    ]
+  },
+  {
+    "category": "ÉRTÉKESÍTÉS",
+    "name": [
+      "ügyfelek megkeresése telefonon",
+      "Konzultációs ajánlat kiküldése",
+      "Utánkövetés",
+      "Konzultáció szervezése",
+      "Ajánlat kiküldése",
+      "Credit lista feldolgozása",
+      "Heti meeting a marketing csapattal",
+      "Telefonon érkezett megkeresések ügyintézése",
+      "Értékesítő csapattal való egyeztetés, kérdések megbeszélése",
+      "Beérkező leadek feldolgozása, átnézése",
+      "Beérkezett ügyfelek felülvizsgálata a MiniCRM-ben",
+      "Telefonhívás"
+    ]
+  },
+  {
+    "category": "JOG",
+    "name": [
+      "szerződés megírása",
+      "meghatalmazás megírása",
+      "jogszabálykutatás",
+      "e-mail megválaszolása",
+      "telefonbeszélgetés az ügyféllel",
+      "személyes egyeztetés az ügyféllel",
+      "teams egyeztetés az ügyféllel",
+      "nyilatkozat megírása",
+      "fellebbezés megírása",
+      "észrevétel megírása",
+      "egyezségi javaslat megírása",
+      "kérelem megírása",
+      "egyéb beadvány/hivatalos levél megírása az ügyfél érdekében",
+      "nyilatkozat benyújtása",
+      "fellebbezés benyújtása",
+      "észrevétel benyújtása",
+      "egyezségi javaslat benyújtása",
+      "kérelem benyújtása",
+      "felszámolóval való kapcsolattartás (e-mailben vagy telefonon)"
+    ]
+  },
+  {
+    "category": "ASSZISZTENCIA/FELSZÁMOLÁS",
+    "name": [
+      "Felszámolóval való teljes körű kapcsolattartás, egyeztetés, személyes találkozók lebonyolítása",
+      "Adós tájékoztatása a főbb feladatokról (Cstv. 31. § szerinti kötelezettségekről):",
+      "meghatalmazás felszámolónak való megküldése",
+      "környezetvédelmi nyilatkozat elkészítése, adósnak küldése, majd felszámolónak való megküldése",
+      "a Felszámoló kezdő levelének megkérése az Adóstól (ha nem kaptuk még meg)",
+      "Céltartalékról történő teljes körű tájékoztatás az Adósnak",
+      "megfizetett céltartalék utalási igazolás kérése az Adóstól, majd ezt követően megküldés a Felszámoló részére",
+      "Cstv. 31. § szerinti dokumentumok küldése a Felszámolónak",
+      "Esetleges hiánypótlási dokumentumok kérése az adóstól, majd azok megküldése a Felszámolónak",
+      "Felszámolási eljárásában Felszámolótól történő tájékoztatás kérése a felszámolási jelenlegi állásáról",
+      "Esetenként iratok, vagyon átvétele az Adóstól, majd azok átadása a Felszámolónak",
+      "Esetenként vagyon átadásban közreműködés",
+      "Esetenként a különböző Szolgáltatóknál (leginkább telefon) átírása, annak teljes körű ügyintézése az Adóssal és a Felszámolóval (meghatalmazás elkészítése, nyilatkozat megírása, majd ezek megküldése és eredetben történő elhozatala a Felszámolótól)",
+      "Könyveléssel egyeztetés felszámolási kérdésekben",
+      "Számlatartozásra történő felhívás, annak rendezésére történő felszólítás",
+      "Iratjegyzék elkészítése",
+      "Adóssal történő folyamatos egyeztetés írásban vagy telefonon különböző kérdésekben",
+      "Jogi osztállyal történő egyeztetés",
+      "Eljárások felülvizsgálata a MiniCRM-ben",
+      "Hatóságok előtt személyes közreműködés"
+    ]
+  },
+  {
+    "category": "KÖNYVELÉS",
+    "name": [
+      "Nyitó főkönyv rögzítés,",
+      "havi számlák és bankok rögzítése",
+      "e-mail írás",
+      "Miniben kapott főkönyveket, analitikákat átnézem, leírom mit látok, esetleg mit lehet tenni, megnézem a feltöltött beszámolókat, megnézem a cégjegyzéket.",
+      "Cégvezetővel a könyvelés miatt felveszem a kapcsolatot",
+      "Ügyvélkapu meghatalmazás megképzés ONYA rendszerbe",
+      "Cégkapu, ügyfélkapu levél kiküldés ügyvezetőnek",
+      "Ügyfél átvilágítási adatlap kiküldés, egyeztetés ügyféllel, mert nem tudják kitölteni, majd átnézés, táblázatba felvezetés, bementés a mappába.",
+      "Ha már van meghatalmazásunk, megnézzük hogy meddig adták be a bevallásokat, ha látok bértartozást, szólok Margónak is, hogy adatokat kell bekérni, mert elmaradt dolgozói bérek lehetnek.",
+      "Ha bérgari lesz, ezeknek a főkönyvi könyvelése, illetve előírt béreknek a könyvelésben rendezése.",
+      "Ha megadják a könyvelőtől bekérem a könyvelési anyagokat (főkönyv, főkönyvi kartonok, nyitott vevő, nyitott szállító, tárgyi eszköz nyilvántartás, készlet, az aktuálist és visszamenőleg is, alap esetben 3 évet, majd ezt kimentegetem.",
+      "Átnézem a kapott főkönyvet, tárgyi eszközöket, nyitott vevő és szállító analitikákat.",
+      "Nyitó főkönyv rögzítés, nyitott vevők, nyitott szállító analitikák rögzítése, egyeztése, tárgyi eszköz analitikák rögzítése tételesen.",
+      "Ha hiba van, nem egyeznek az analitikák a főkönyvvel, írok a könyvelőnek, ha az nem vezet eredményre az ügyvezetőnek is.",
+      "Kiküldöm egyeztetésre az ügyvezetőnek a nyitott analitikákat, tárgyi eszközöket, készletet, hogy valós-e.",
+      "Ha visszaküldi a választ, akkor az alapján, vagy új kérdés, vagy kapott adatok, nyilatkozat alapján kivezetem, illetve felhívnak telefonon 1 órás nem értem mik vannak, az már nincs, meggyőzés, hogy írja le, hogy mi nincs, mi a gondja vele.",
+      "Kölcsönök rendezése, bér egyeztetés, stratégia megbeszélése, egyeztése, osztalék, osztalék előleg lehetőségének megvizsgálása.",
+      "NAV OSA rendszer lekérés, kimentés, majd havi számlák és bankok bekérése az ügyféltől, ha küldik rögzítése.",
+      "Selejtezési jegyzőkönyv előkészítés, készlet selejtezési jegyzőkönyv előkészítés",
+      "Adófolyószámlák átnézése, rendezése.",
+      "Kölcsönökhöz kérek adatokat, kölcsönszerződést, emailt írok, könyvelőtől kérek, kartonokat, hogy kiderítsük mikor keletkezett, mekkora összegek",
+      "Pályázatos adatokat meg próbálom bekérni, vagy lízinges kimutatást.",
+      "FAG01-es nyomtatványt kitöltés, min. 3 óra, iratok bekérése, nyilatkozatok, csatolandó dokumentumokat, adatokat, beszámolót készítek.",
+      "Telefonos, emailes levelek, adótanácsadás folyamatosan az ügyvelekne, minimum fél, 1 órás.",
+      "Havi bevallások elkészítése 65 Áfa, 01 egyéb adók, KIVA, záró bevallásoka ahol nincs, pótlása, beadása (HIPA, KIVA, 29 (TAO))",
+      "Záró bevallások (01 (egyéb adók, cégautóadó),71 (társasági adó záró),HIPA (iparűzési adó bevallás), 08 (járulék bevallás), 65 (áfa bevallás), záró beszámoló elkészítés, esetleg előző évi beszámoló elkészítése",
+      "Ha jön NAV megkeresés 40 kérdés, megválaszolás, minimum 1 vagy 2 nap, mire a számlákat, adatokat előkerítjük, beszkenneljük, nyilatkozatot megírjuk.",
+      "NAV előtti képviselet.",
+      "Kolléganők munkáinak átnézése, kérdéseik, ügyes bajos dolgok rendezése.",
+      "Számlázási korrekciók.",
+      "Ügyfelekkel megbeszéléseken részvétel 1 órák minimum."
+    ]
+  },
+  {
+    "category": "MUNKAÜGY",
+    "name": [
+      "A munkavállalók biztosítási jogviszonyának  ellenőrzése",
+      "Nyitott biztosítási jogviszonyok rendezése",
+      "Előzőleg beküldött  bevallások letöltése, ellenőrzése",
+      "Szükség szerint, a bevallások  pótlása, helyesbítése,  önellenőrzése",
+      "Levelezés volt könyvelőkkel, bérszámfejtőkkel a munkavállalók ügyében",
+      "Kapcsolatfelvétel a munkavállalók helyzetének felmérésére,  munkaügyi iratok átvétele",
+      "Szükség szerint a munkavállalók folyamatos vagy időleges bérszámfejtése",
+      "Minden hónapban a 08-as bevallások , illetve szükség szerint a KIVA bevallások elkészítése és beadása",
+      "Elmaradt bértartozás esetén kimutatás készítése a felszámoló részére történő átadásra",
+      "Bértartozás esetén a a bérgarancia tv- ben leírt dokumentumok beszerzése",
+      "Szükség szerint a csoportos létszámleépítéshez szakmai segítségnyújtás,  esetleg  tényleges közreműködés annak lebonyolításában",
+      "Nyugdíjbiztosítási Igazgatóság megkeresése alapján adatszolgáltatás a munkavállalókról",
+      "Adatszolgáltatás az Egészségbiztosítási Pénztár felé a munkavállalók társadalombiztosítási ellátásához",
+      "A tanácsadás  alatt lévő cégek cégkapujának kezelése, a dokumentumok leöltése"
+    ]
+  }
+]
