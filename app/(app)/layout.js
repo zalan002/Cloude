@@ -19,6 +19,10 @@ export default async function AppLayout({ children }) {
     .eq('id', user.id)
     .single();
 
+  if (!profile) {
+    redirect('/login');
+  }
+
   return (
     <div className="min-h-screen bg-page-bg">
       <Sidebar profile={profile} />

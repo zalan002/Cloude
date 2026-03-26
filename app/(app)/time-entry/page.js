@@ -48,7 +48,7 @@ export default function TimeEntryPage() {
       }
     }
     loadData();
-  }, []);
+  }, [searchParams]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -65,16 +65,31 @@ export default function TimeEntryPage() {
         return;
       }
 
+      const parsedProjectId = parseInt(projectId);
+      const parsedMinutes = parseInt(minutes);
+
+      if (!parsedProjectId || isNaN(parsedProjectId)) {
+        setError('Kérjük, válasszon projektet.');
+        return;
+      }
+      if (!parsedMinutes || isNaN(parsedMinutes) || parsedMinutes < 1) {
+        setError('Kérjük, adjon meg érvényes időtartamot.');
+        return;
+      }
+
       const insertData = {
         user_id: user.id,
-        project_id: parseInt(projectId),
+        project_id: parsedProjectId,
         entry_date: entryDate,
-        hours: parseInt(minutes) / 60,
+        hours: parsedMinutes / 60,
         description: description.trim() || null,
       };
 
       if (taskId) {
-        insertData.task_id = parseInt(taskId);
+        const parsedTaskId = parseInt(taskId);
+        if (parsedTaskId && !isNaN(parsedTaskId)) {
+          insertData.task_id = parsedTaskId;
+        }
       }
 
       const { error: insertError } = await supabase
