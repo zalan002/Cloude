@@ -2,13 +2,10 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 
-export default function ProjectSelector({ projects, value, onChange, required, onProjectAdded }) {
+export default function ProjectSelector({ projects, value, onChange, required }) {
   const [search, setSearch] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [adding, setAdding] = useState(false);
   const containerRef = useRef(null);
   const inputRef = useRef(null);
   const listRef = useRef(null);
@@ -230,65 +227,6 @@ export default function ProjectSelector({ projects, value, onChange, required, o
                 </li>
               )}
             </ul>
-          )}
-          {onProjectAdded && (
-            <div className="border-t border-gray-200">
-              {showAddForm ? (
-                <div className="p-3 space-y-2 bg-gray-50" onClick={(e) => e.stopPropagation()}>
-                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
-                    Kérjük, először győződjön meg róla, hogy a keresett projekt nem szerepel-e már a listában! Csak akkor vegyen fel újat, ha biztosan nincs megfelelő.
-                  </p>
-                  <input
-                    type="text"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    placeholder="Új projekt neve..."
-                    className="input-field !py-1.5 text-sm"
-                    autoFocus
-                    onKeyDown={(e) => e.stopPropagation()}
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      disabled={!newName.trim() || adding}
-                      onClick={async () => {
-                        setAdding(true);
-                        const project = await onProjectAdded(newName.trim());
-                        setAdding(false);
-                        if (project) {
-                          setNewName('');
-                          setShowAddForm(false);
-                          setSearch('');
-                          setIsOpen(false);
-                          onChange(String(project.id));
-                        }
-                      }}
-                      className="btn-primary !py-1.5 !px-3 text-xs disabled:opacity-50"
-                    >
-                      {adding ? 'Mentés...' : 'Hozzáadás'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setShowAddForm(false); setNewName(''); }}
-                      className="btn-secondary !py-1.5 !px-3 text-xs"
-                    >
-                      Mégse
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowAddForm(true)}
-                  className="w-full px-4 py-2.5 text-sm text-medium-blue hover:bg-medium-blue/5 flex items-center gap-2 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                  </svg>
-                  Új projekt hozzáadása
-                </button>
-              )}
-            </div>
           )}
         </div>
       )}

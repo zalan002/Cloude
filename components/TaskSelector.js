@@ -2,23 +2,10 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 
-const CATEGORIES = [
-  'EGYÉB FELADATOK',
-  'ÉRTÉKESÍTÉS',
-  'JOG',
-  'ASSZISZTENCIA/FELSZÁMOLÁS',
-  'KÖNYVELÉS',
-  'MUNKAÜGY',
-];
-
-export default function TaskSelector({ tasks, value, onChange, required, onTaskAdded }) {
+export default function TaskSelector({ tasks, value, onChange, required }) {
   const [search, setSearch] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newCategory, setNewCategory] = useState('');
-  const [adding, setAdding] = useState(false);
   const containerRef = useRef(null);
   const inputRef = useRef(null);
   const listRef = useRef(null);
@@ -298,77 +285,6 @@ export default function TaskSelector({ tasks, value, onChange, required, onTaskA
                 </li>
               )}
             </ul>
-          )}
-          {onTaskAdded && (
-            <div className="border-t border-gray-200">
-              {showAddForm ? (
-                <div className="p-3 space-y-2 bg-gray-50" onClick={(e) => e.stopPropagation()}>
-                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
-                    Kérjük, először győződjön meg róla, hogy a keresett feladat nem szerepel-e már a listában! Csak akkor vegyen fel újat, ha biztosan nincs megfelelő.
-                  </p>
-                  <input
-                    type="text"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    placeholder="Új feladat neve..."
-                    className="input-field !py-1.5 text-sm"
-                    autoFocus
-                    onKeyDown={(e) => e.stopPropagation()}
-                  />
-                  <select
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    className="input-field !py-1.5 text-sm"
-                    onKeyDown={(e) => e.stopPropagation()}
-                  >
-                    <option value="">Kategória (opcionális)</option>
-                    {CATEGORIES.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      disabled={!newName.trim() || adding}
-                      onClick={async () => {
-                        setAdding(true);
-                        const task = await onTaskAdded(newName.trim(), newCategory || null);
-                        setAdding(false);
-                        if (task) {
-                          setNewName('');
-                          setNewCategory('');
-                          setShowAddForm(false);
-                          setSearch('');
-                          setIsOpen(false);
-                          onChange(String(task.id));
-                        }
-                      }}
-                      className="btn-primary !py-1.5 !px-3 text-xs disabled:opacity-50"
-                    >
-                      {adding ? 'Mentés...' : 'Hozzáadás'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setShowAddForm(false); setNewName(''); setNewCategory(''); }}
-                      className="btn-secondary !py-1.5 !px-3 text-xs"
-                    >
-                      Mégse
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowAddForm(true)}
-                  className="w-full px-4 py-2.5 text-sm text-medium-blue hover:bg-medium-blue/5 flex items-center gap-2 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                  </svg>
-                  Új feladat hozzáadása
-                </button>
-              )}
-            </div>
           )}
         </div>
       )}

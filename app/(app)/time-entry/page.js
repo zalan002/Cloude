@@ -164,19 +164,6 @@ export default function TimeEntryPage() {
               value={projectId}
               onChange={setProjectId}
               required
-              onProjectAdded={async (name) => {
-                const { data, error: err } = await supabase
-                  .from('minicrm_projects')
-                  .insert({ name, status: 'active' })
-                  .select()
-                  .single();
-                if (err) {
-                  setError('Hiba a projekt hozzáadásakor: ' + err.message);
-                  return null;
-                }
-                setProjects((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
-                return data;
-              }}
             />
           </div>
 
@@ -192,21 +179,6 @@ export default function TimeEntryPage() {
               value={taskId}
               onChange={setTaskId}
               required
-              onTaskAdded={async (name, category) => {
-                const insertData = { name, status: 'active' };
-                if (category) insertData.category = category;
-                const { data, error: err } = await supabase
-                  .from('tasks')
-                  .insert(insertData)
-                  .select()
-                  .single();
-                if (err) {
-                  setError('Hiba a feladat hozzáadásakor: ' + err.message);
-                  return null;
-                }
-                setTasks((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
-                return data;
-              }}
             />
           </div>
 
