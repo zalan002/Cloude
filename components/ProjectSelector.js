@@ -235,6 +235,9 @@ export default function ProjectSelector({ projects, value, onChange, required, o
             <div className="border-t border-gray-200">
               {showAddForm ? (
                 <div className="p-3 space-y-2 bg-gray-50" onClick={(e) => e.stopPropagation()}>
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
+                    Kérjük, először győződjön meg róla, hogy a keresett projekt nem szerepel-e már a listában! Csak akkor vegyen fel újat, ha biztosan nincs megfelelő.
+                  </p>
                   <input
                     type="text"
                     value={newName}
