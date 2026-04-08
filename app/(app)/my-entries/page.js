@@ -43,11 +43,17 @@ export default function MyEntriesPage() {
     if (deleting) return;
     if (!confirm('Biztosan törölni szeretnéd ezt a bejegyzést?')) return;
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
     setDeleting(entryId);
     const { error } = await supabase
       .from('time_entries')
       .delete()
-      .eq('id', entryId);
+      .eq('id', entryId)
+      .eq('user_id', user.id);
 
     if (error) {
       alert('Hiba a törlés során: ' + error.message);
