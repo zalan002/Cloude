@@ -24,6 +24,7 @@ export default function TimeEntryPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -50,10 +51,38 @@ export default function TimeEntryPage() {
     loadData();
   }, [searchParams]);
 
-  const handleSubmit = async (e) => {
+  // Step 1: Validate and show confirmation
+  const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
+
+    const parsedProjectId = parseInt(projectId);
+    const parsedMinutes = parseInt(minutes);
+
+    if (!parsedProjectId || isNaN(parsedProjectId)) {
+      setError('Kérjük, válasszon projektet.');
+      return;
+    }
+    if (!taskId) {
+      setError('Kérjük, válasszon feladatot.');
+      return;
+    }
+    if (!parsedMinutes || isNaN(parsedMinutes) || parsedMinutes < 1) {
+      setError('Kérjük, adjon meg érvényes időtartamot.');
+      return;
+    }
+    if (!entryDate) {
+      setError('Kérjük, adjon meg dátumot.');
+      return;
+    }
+
+    setShowConfirm(true);
+  };
+
+  // Step 2: Actually save after confirmation
+  const handleConfirmedSave = async () => {
     setLoading(true);
+    setError('');
 
     try {
       const {
@@ -62,20 +91,12 @@ export default function TimeEntryPage() {
 
       if (!user) {
         setError('Nem vagy bejelentkezve.');
+        setShowConfirm(false);
         return;
       }
 
       const parsedProjectId = parseInt(projectId);
       const parsedMinutes = parseInt(minutes);
-
-      if (!parsedProjectId || isNaN(parsedProjectId)) {
-        setError('Kérjük, válasszon projektet.');
-        return;
-      }
-      if (!parsedMinutes || isNaN(parsedMinutes) || parsedMinutes < 1) {
-        setError('Kérjük, adjon meg érvényes időtartamot.');
-        return;
-      }
 
       const insertData = {
         user_id: user.id,
@@ -98,6 +119,7 @@ export default function TimeEntryPage() {
 
       if (insertError) {
         setError('Hiba a mentés során: ' + insertError.message);
+        setShowConfirm(false);
         reportError({ page: 'Időbejegyzés', action: 'Időbejegyzés mentése', error: insertError.message });
         return;
       }
@@ -108,11 +130,16 @@ export default function TimeEntryPage() {
       }, 1500);
     } catch (err) {
       setError('Váratlan hiba történt.');
+      setShowConfirm(false);
       reportError({ page: 'Időbejegyzés', action: 'Időbejegyzés mentése', error: err?.message || 'Ismeretlen hiba' });
     } finally {
       setLoading(false);
     }
   };
+
+  const selectedProject = projects.find((p) => String(p.id) === String(projectId));
+  const selectedTask = tasks.find((t) => String(t.id) === String(taskId));
+  const parsedMinutesDisplay = parseInt(minutes) || 0;
 
   if (success) {
     return (
@@ -252,48 +279,65 @@ export default function TimeEntryPage() {
             </div>
           )}
 
+          {/* Confirmation panel */}
+          {showConfirm && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm font-semibold text-deep-blue mb-3">Kérjük, ellenőrizze a bejegyzés adatait:</p>
+              <div className="space-y-1.5 text-sm text-dark-text mb-4">
+                <p><span className="font-semibold text-mid-gray">Projekt:</span> {selectedProject?.name || '—'}</p>
+                <p><span className="font-semibold text-mid-gray">Feladat:</span> {selectedTask?.name || '—'}{selectedTask?.category ? ` (${selectedTask.category})` : ''}</p>
+                <p><span className="font-semibold text-mid-gray">Dátum:</span> {new Date(entryDate + 'T00:00:00').toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</p>
+                <p><span className="font-semibold text-mid-gray">Időtartam:</span> {Math.floor(parsedMinutesDisplay / 60)} óra {parsedMinutesDisplay % 60} perc</p>
+                {description.trim() && <p><span className="font-semibold text-mid-gray">Leírás:</span> {description.trim()}</p>}
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleConfirmedSave}
+                  disabled={loading}
+                  className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <svg className="spinner w-5 h-5" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Mentés...
+                    </>
+                  ) : (
+                    'Igen, mentés!'
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(false)}
+                  className="btn-secondary"
+                >
+                  Vissza a szerkesztéshez
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Buttons */}
-          <div className="flex items-center gap-4 pt-2">
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <svg
-                    className="spinner w-5 h-5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    />
-                  </svg>
-                  Mentés...
-                </>
-              ) : (
-                'Mentés'
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="btn-secondary"
-            >
-              Mégse
-            </button>
-          </div>
+          {!showConfirm && (
+            <div className="flex items-center gap-4 pt-2">
+              <button
+                type="submit"
+                className="btn-primary"
+              >
+                Tovább
+              </button>
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="btn-secondary"
+              >
+                Mégse
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </div>
