@@ -86,7 +86,12 @@ export default function AddItemPage() {
 
     const { error } = await supabase
       .from('minicrm_projects')
-      .insert({ name, status: 'active' });
+      .insert({
+        name,
+        status: 'active',
+        minicrm_id: Date.now() + Math.floor(Math.random() * 10000),
+        category_name: 'Manuális',
+      });
 
     setProjectSaving(false);
 
