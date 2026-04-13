@@ -84,12 +84,33 @@ export default function AddItemPage() {
     setProjectSaving(true);
     setMessage(null);
 
+    // Generate hash-based minicrm_id within INT4 range (max 2,147,483,647)
+    const baseHash = Math.abs(
+      Array.from(name.toLowerCase()).reduce(
+        (hash, char) => ((hash << 5) - hash + char.charCodeAt(0)) & 0x7fffffff,
+        0
+      )
+    );
+
+    // Handle collisions: find an unused ID near the hash
+    const { data: existing } = await supabase
+      .from('minicrm_projects')
+      .select('minicrm_id')
+      .gte('minicrm_id', baseHash)
+      .lt('minicrm_id', baseHash + 1000);
+
+    const usedIds = new Set((existing || []).map((p) => p.minicrm_id));
+    let minicrm_id = baseHash;
+    while (usedIds.has(minicrm_id)) {
+      minicrm_id++;
+    }
+
     const { error } = await supabase
       .from('minicrm_projects')
       .insert({
         name,
         status: 'active',
-        minicrm_id: Date.now() + Math.floor(Math.random() * 10000),
+        minicrm_id,
         category_name: 'Manuális',
       });
 
