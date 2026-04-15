@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { sendInactivityAlert } from '@/lib/email';
+import { verifyCronSecret } from '@/lib/security';
+import { logServerAudit } from '@/lib/audit.server';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,10 +10,14 @@ const INACTIVITY_DAYS = 3;
 
 export async function GET(request) {
   try {
-    const authHeader = request.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET;
-
-    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    if (!verifyCronSecret(request)) {
+      await logServerAudit({
+        eventType: 'cron.unauthorized',
+        severity: 'warn',
+        entityType: 'cron',
+        entityId: 'check-activity',
+        request,
+      });
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

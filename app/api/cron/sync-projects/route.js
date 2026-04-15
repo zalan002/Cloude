@@ -2,17 +2,23 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { syncProjects } from '@/app/api/projects/sync/route';
 import { sendErrorAlert } from '@/lib/email';
+import { verifyCronSecret } from '@/lib/security';
+import { logServerAudit } from '@/lib/audit.server';
 
 export const dynamic = 'force-dynamic';
 
 // Vercel Cron calls this endpoint
 export async function GET(request) {
   try {
-    // Verify cron secret to prevent unauthorized access
-    const authHeader = request.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET;
-
-    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    // Verify cron secret in constant time
+    if (!verifyCronSecret(request)) {
+      await logServerAudit({
+        eventType: 'cron.unauthorized',
+        severity: 'warn',
+        entityType: 'cron',
+        entityId: 'sync-projects',
+        request,
+      });
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -47,6 +53,19 @@ export async function GET(request) {
       { key: 'last_sync_at', value: new Date().toISOString() },
       { onConflict: 'key' }
     );
+
+    await logServerAudit({
+      eventType: 'cron.sync_projects.completed',
+      severity: 'info',
+      entityType: 'cron',
+      entityId: 'sync-projects',
+      payload: {
+        synced: result?.synced,
+        errors: result?.errors,
+        total_found: result?.total_found,
+      },
+      request,
+    });
 
     return NextResponse.json({
       ...result,

@@ -1,49 +1,66 @@
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { sendErrorAlert } from '@/lib/email';
+import { requireUser } from '@/lib/supabase/server';
+import { verifySameOrigin } from '@/lib/security';
+import { checkRate, getClientIp } from '@/lib/rateLimit';
+import { logServerAudit } from '@/lib/audit.server';
 
 export async function POST(request) {
-  try {
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              );
-            } catch {}
-          },
-        },
-      }
-    );
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    const body = await request.json();
-    const { page, action, error } = body;
-
-    const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const userName = esc(user?.email || 'Ismeretlen felhasználó');
-
-    await sendErrorAlert({
-      subject: `Hiba: ${esc(action)}`,
-      message: `<strong>Felhasználó:</strong> ${userName}<br><strong>Oldal:</strong> ${esc(page)}<br><strong>Művelet:</strong> ${esc(action)}`,
-      context: esc(error),
-    });
-
-    return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error('Error report hiba:', err);
-    return NextResponse.json({ success: false }, { status: 500 });
+  // 1. Same-origin check (CSRF defense).
+  if (!verifySameOrigin(request)) {
+    return NextResponse.json({ error: 'Forbidden origin.' }, { status: 403 });
   }
+
+  // 2. Auth required — anonymous users cannot trigger emails.
+  let session;
+  try {
+    session = await requireUser();
+  } catch (resp) {
+    return resp;
+  }
+
+  // 3. Rate limit per user: at most 10 reports / 5 minutes.
+  const rate = checkRate({
+    key: `report-error:${session.user.id}`,
+    limit: 10,
+    windowMs: 5 * 60 * 1000,
+  });
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: 'Túl sok hibajelentés egy időszak alatt.' },
+      { status: 429 }
+    );
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+
+  // Defensive truncation — values become email content.
+  const trim = (s, n) => (s == null ? '' : String(s).slice(0, n));
+  const page = trim(body.page, 200);
+  const action = trim(body.action, 200);
+  const error = trim(body.error, 4000);
+
+  await sendErrorAlert({
+    subject: `Hiba: ${action}`,
+    message: `Felhasználó: ${session.user.email}\nOldal: ${page}\nMűvelet: ${action}`,
+    context: error,
+  });
+
+  await logServerAudit({
+    userId: session.user.id,
+    userEmail: session.user.email,
+    eventType: 'client.error_reported',
+    severity: 'warn',
+    entityType: 'client_error',
+    entityId: null,
+    payload: { page, action, error_excerpt: error.slice(0, 500) },
+    request,
+  });
+
+  return NextResponse.json({ success: true });
 }

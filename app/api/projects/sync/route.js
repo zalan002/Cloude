@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { sendErrorAlert } from '@/lib/email';
+import { logServerAudit } from '@/lib/audit.server';
+import { verifySameOrigin } from '@/lib/security';
 
 const CSV_URLS = {
   sales: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTkHbDkXhzaWeR2caj-WyW7F-9ZTgMKzB-acV0jV27LbzAVC-D0dEYjgwGURMkAi8i_PCrDYZrwNmDr/pub?gid=1984680240&single=true&output=csv',
@@ -233,11 +235,15 @@ export async function syncProjects(supabase) {
         if (row[h]) rawData[h] = row[h];
       });
 
+      const sourceId = idCol ? (row[idCol] || '').trim() : '';
       salesProjects.push({
         name: name.trim(),
-        source_id: idCol ? row[idCol] : null,
+        source_id: sourceId || null,
         category: catCol ? row[catCol] : 'Értékesítés',
         source: 'minicrm_sales',
+        source_key: sourceId
+          ? `minicrm_sales:${sourceId}`
+          : `minicrm_sales:name_${name.trim().toLowerCase()}`,
         raw_data: rawData,
       });
     });
@@ -263,60 +269,48 @@ export async function syncProjects(supabase) {
         if (row[h]) rawData[h] = row[h];
       });
 
+      const sourceId = idCol ? (row[idCol] || '').trim() : '';
       partnerProjects.push({
         name: name.trim(),
-        source_id: idCol ? row[idCol] : null,
+        source_id: sourceId || null,
         category: catCol ? row[catCol] : 'Partner',
         source: 'minicrm_partner',
+        source_key: sourceId
+          ? `minicrm_partner:${sourceId}`
+          : `minicrm_partner:name_${name.trim().toLowerCase()}`,
         raw_data: rawData,
       });
     });
   }
 
-  // Deduplicate: partner data takes priority over sales
-  // Key by source_id first, then by name
+  // Deduplicate by source_key. Sales and partner now live in
+  // separate key namespaces (minicrm_sales:* vs. minicrm_partner:*),
+  // so a numeric ID collision between the two CSVs no longer
+  // causes one to overwrite the other.
   const projectMap = new Map();
-
   salesProjects.forEach((p) => {
-    const key = p.source_id
-      ? `id:${p.source_id}`
-      : `name:${p.name.toLowerCase()}`;
-    if (!projectMap.has(key)) {
-      projectMap.set(key, p);
-    }
+    if (!projectMap.has(p.source_key)) projectMap.set(p.source_key, p);
   });
-
   partnerProjects.forEach((p) => {
-    const key = p.source_id
-      ? `id:${p.source_id}`
-      : `name:${p.name.toLowerCase()}`;
-    // Partner always overrides sales
-    projectMap.set(key, p);
+    // Within the partner namespace, last write wins for duplicates
+    // (same source_id appearing twice in the partner CSV).
+    projectMap.set(p.source_key, p);
   });
 
-  // Also deduplicate by name across different IDs
-  const nameMap = new Map();
-  const uniqueProjects = [];
-  for (const p of projectMap.values()) {
-    const nameKey = p.name.toLowerCase();
-    if (!nameMap.has(nameKey)) {
-      nameMap.set(nameKey, true);
-      uniqueProjects.push(p);
-    }
-  }
+  const uniqueProjects = Array.from(projectMap.values());
 
-  // Upsert to Supabase - only MiniCRM projects (never touch manual ones)
+  // Upsert to Supabase keyed on source_key. minicrm_id is still
+  // computed for backwards-compat (older code reads it), but it
+  // is NO LONGER the conflict target — source_key is.
   let synced = 0;
   let errors = 0;
   let collisions = 0;
   const now = new Date().toISOString();
 
-  // Pre-compute all minicrm_ids and resolve collisions before upserting
   const usedIds = new Set();
   const projectsWithIds = uniqueProjects.map((project) => {
     let minicrm_id = toMiniCrmId(project.source_id, project.name);
 
-    // Resolve hash collisions by incrementing
     let attempts = 0;
     while (usedIds.has(minicrm_id) && attempts < 1000) {
       minicrm_id++;
@@ -330,6 +324,7 @@ export async function syncProjects(supabase) {
 
   for (const project of projectsWithIds) {
     const upsertData = {
+      source_key: project.source_key,
       minicrm_id: project.minicrm_id,
       name: project.name,
       category_name: project.category || null,
@@ -341,7 +336,7 @@ export async function syncProjects(supabase) {
 
     const { error: upsertError } = await supabase
       .from('minicrm_projects')
-      .upsert(upsertData, { onConflict: 'minicrm_id' });
+      .upsert(upsertData, { onConflict: 'source_key' });
 
     if (upsertError) {
       console.error(`Upsert error for "${project.name}":`, upsertError.message);
@@ -365,8 +360,12 @@ export async function syncProjects(supabase) {
   };
 }
 
-export async function POST() {
+export async function POST(request) {
   try {
+    if (!verifySameOrigin(request)) {
+      return NextResponse.json({ error: 'Forbidden origin.' }, { status: 403 });
+    }
+
     const supabase = getSupabase();
 
     // Check auth
@@ -384,16 +383,31 @@ export async function POST() {
     // Check admin role
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, status')
       .eq('id', user.id)
       .single();
 
-    if (profile?.role !== 'admin') {
+    if (!profile || profile.status !== 'active' || profile.role !== 'admin') {
+      await logServerAudit({
+        userId: user.id,
+        userEmail: user.email,
+        eventType: 'admin.sync_projects.denied',
+        severity: 'warn',
+        request,
+      });
       return NextResponse.json(
         { error: 'Csak adminisztrátor érheti el ezt a funkciót.' },
         { status: 403 }
       );
     }
+
+    await logServerAudit({
+      userId: user.id,
+      userEmail: user.email,
+      eventType: 'admin.sync_projects.started',
+      severity: 'info',
+      request,
+    });
 
     const result = await syncProjects(supabase);
 
@@ -402,6 +416,19 @@ export async function POST() {
       { key: 'last_sync_at', value: new Date().toISOString() },
       { onConflict: 'key' }
     );
+
+    await logServerAudit({
+      userId: user.id,
+      userEmail: user.email,
+      eventType: 'admin.sync_projects.completed',
+      severity: 'info',
+      payload: {
+        synced: result?.synced,
+        errors: result?.errors,
+        total_found: result?.total_found,
+      },
+      request,
+    });
 
     return NextResponse.json(result);
   } catch (err) {

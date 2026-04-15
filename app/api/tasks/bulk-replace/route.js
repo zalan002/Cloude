@@ -1,34 +1,37 @@
-import { createClient } from '@/lib/supabase/server';
+import { requireUser } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { verifySameOrigin } from '@/lib/security';
+import { logServerAudit } from '@/lib/audit.server';
+import { asString } from '@/lib/validation';
 
 export async function POST(request) {
   try {
-    const supabase = createClient();
-
-    // Verify admin
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Nincs bejelentkezve.' }, { status: 401 });
+    if (!verifySameOrigin(request)) {
+      return NextResponse.json({ error: 'Forbidden origin.' }, { status: 403 });
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Nincs jogosultság.' }, { status: 403 });
+    let session;
+    try {
+      session = await requireUser({ admin: true });
+    } catch (resp) {
+      return resp;
     }
+    const supabase = session.supabase;
 
-    const { tasks } = await request.json();
+    const body = await request.json();
+    const tasksRaw = body?.tasks;
 
-    if (!Array.isArray(tasks) || tasks.length === 0) {
+    if (!Array.isArray(tasksRaw) || tasksRaw.length === 0 || tasksRaw.length > 1000) {
       return NextResponse.json({ error: 'Érvénytelen feladatlista.' }, { status: 400 });
     }
+
+    // Validate each task entry
+    const tasks = tasksRaw.map((t, i) => {
+      const name = asString(t?.name, `tasks[${i}].name`, { max: 500 });
+      const out = { name, status: 'active' };
+      if (t?.category) out.category = asString(t.category, `tasks[${i}].category`, { max: 100 });
+      return out;
+    });
 
     // Get all existing tasks
     const { data: existingTasks } = await supabase
@@ -82,6 +85,16 @@ export async function POST(request) {
       );
     }
 
+    await logServerAudit({
+      userId: session.user.id,
+      userEmail: session.user.email,
+      eventType: 'admin.tasks.bulk_replaced',
+      severity: 'warn',
+      entityType: 'task',
+      payload: { deleted, archived, inserted: tasks.length },
+      request,
+    });
+
     return NextResponse.json({
       success: true,
       deleted,
@@ -89,6 +102,9 @@ export async function POST(request) {
       inserted: tasks.length,
     });
   } catch (err) {
+    if (err?.name === 'ValidationError') {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
     console.error('Bulk task replace error:', err);
     return NextResponse.json(
       { error: 'Váratlan hiba: ' + err.message },
