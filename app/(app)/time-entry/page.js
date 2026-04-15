@@ -31,7 +31,7 @@ export default function TimeEntryPage() {
       const [projectsRes, tasksRes] = await Promise.all([
         supabase
           .from('minicrm_projects')
-          .select('*')
+          .select('id, name, source_key, status, category_name')
           .eq('status', 'active')
           .order('name'),
         supabase
@@ -85,42 +85,45 @@ export default function TimeEntryPage() {
     setError('');
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const parsedProjectId = parseInt(projectId);
+      const parsedMinutes = parseInt(minutes);
 
-      if (!user) {
-        setError('Nem vagy bejelentkezve.');
+      // Look up the source_key from the in-memory project list.
+      // The server requires it and re-validates that it still
+      // matches the row in the DB — this is the safeguard that
+      // prevents an entry from being attached to a different
+      // project than the user picked.
+      const projectInList = projects.find(
+        (p) => String(p.id) === String(parsedProjectId)
+      );
+      if (!projectInList || !projectInList.source_key) {
+        setError('A kiválasztott projekt nem található. Töltsd újra az oldalt.');
         setShowConfirm(false);
         return;
       }
 
-      const parsedProjectId = parseInt(projectId);
-      const parsedMinutes = parseInt(minutes);
-
-      const insertData = {
-        user_id: user.id,
+      const payload = {
         project_id: parsedProjectId,
+        project_source_key: projectInList.source_key,
+        task_id: taskId ? parseInt(taskId) : null,
         entry_date: entryDate,
         hours: parsedMinutes / 60,
         description: description.trim() || null,
       };
 
-      if (taskId) {
-        const parsedTaskId = parseInt(taskId);
-        if (parsedTaskId && !isNaN(parsedTaskId)) {
-          insertData.task_id = parsedTaskId;
-        }
-      }
+      const res = await fetch('/api/time-entries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-      const { error: insertError } = await supabase
-        .from('time_entries')
-        .insert(insertData);
+      const data = await res.json().catch(() => ({}));
 
-      if (insertError) {
-        setError('Hiba a mentés során: ' + insertError.message);
+      if (!res.ok) {
+        const msg = data?.error || 'Ismeretlen hiba';
+        setError('Hiba a mentés során: ' + msg);
         setShowConfirm(false);
-        reportError({ page: 'Időbejegyzés', action: 'Időbejegyzés mentése', error: insertError.message });
+        reportError({ page: 'Időbejegyzés', action: 'Időbejegyzés mentése', error: msg });
         return;
       }
 

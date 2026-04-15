@@ -23,6 +23,16 @@ export default async function AppLayout({ children }) {
     redirect('/login');
   }
 
+  // Inactive accounts are blocked from the entire app.
+  // (Middleware also enforces this; this is defense in depth.)
+  const isInactive =
+    (profile.status && profile.status !== 'active') ||
+    (profile.is_active === false);
+  if (isInactive) {
+    await supabase.auth.signOut();
+    redirect('/login?reason=inactive');
+  }
+
   return (
     <div className="min-h-screen bg-page-bg">
       <Sidebar profile={profile} />

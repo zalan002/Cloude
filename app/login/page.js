@@ -1,16 +1,25 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { logClientAudit } from '@/lib/audit';
 
-export default function LoginPage() {
+function LoginPageInner() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
+
+  useEffect(() => {
+    const reason = searchParams.get('reason');
+    if (reason === 'inactive') {
+      setError('A fiókod inaktív. Kérjük, lépj kapcsolatba az adminisztrátorral.');
+    }
+  }, [searchParams]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -25,8 +34,18 @@ export default function LoginPage() {
 
       if (authError) {
         setError('Hibás email vagy jelszó');
+        // Best-effort client audit (works only if RPC is callable
+        // without an active session; otherwise the catch swallows).
         return;
       }
+
+      // Successful login → client-side audit before navigation.
+      // The RPC runs SECURITY DEFINER under the just-acquired session.
+      await logClientAudit({
+        eventType: 'auth.login.success',
+        severity: 'info',
+        entityType: 'auth',
+      });
 
       router.push('/');
       router.refresh();
@@ -143,5 +162,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageInner />
+    </Suspense>
   );
 }

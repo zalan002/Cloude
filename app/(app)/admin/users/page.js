@@ -60,6 +60,19 @@ export default function AdminUsersPage() {
     if (currentProfile) loadUsers();
   }, [currentProfile, loadUsers]);
 
+  const callAdmin = async (path, body) => {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error || 'Ismeretlen hiba');
+    }
+    return data;
+  };
+
   const toggleRole = async (user) => {
     if (user.id === currentProfile.id) {
       alert('Nem módosíthatod a saját szerepkörödet.');
@@ -76,18 +89,16 @@ export default function AdminUsersPage() {
     )
       return;
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({ role: newRole })
-      .eq('id', user.id);
-
-    if (error) {
-      alert('Hiba: ' + error.message);
-      reportError({ page: 'Felhasználók kezelése', action: 'Szerepkör módosítása', error: error.message });
-      return;
+    try {
+      await callAdmin('/api/admin/users/update-role', {
+        userId: user.id,
+        role: newRole,
+      });
+      loadUsers();
+    } catch (err) {
+      alert('Hiba: ' + err.message);
+      reportError({ page: 'Felhasználók kezelése', action: 'Szerepkör módosítása', error: err.message });
     }
-
-    loadUsers();
   };
 
   const toggleActive = async (user) => {
@@ -96,34 +107,30 @@ export default function AdminUsersPage() {
       return;
     }
 
-    const newStatus = !user.is_active;
-    const { error } = await supabase
-      .from('profiles')
-      .update({ is_active: newStatus })
-      .eq('id', user.id);
-
-    if (error) {
-      alert('Hiba: ' + error.message);
-      reportError({ page: 'Felhasználók kezelése', action: 'Felhasználó aktiválás/deaktiválás', error: error.message });
-      return;
+    const newStatus = user.is_active ? 'inactive' : 'active';
+    try {
+      await callAdmin('/api/admin/users/update-status', {
+        userId: user.id,
+        status: newStatus,
+      });
+      loadUsers();
+    } catch (err) {
+      alert('Hiba: ' + err.message);
+      reportError({ page: 'Felhasználók kezelése', action: 'Felhasználó aktiválás/deaktiválás', error: err.message });
     }
-
-    loadUsers();
   };
 
   const updateDepartment = async (user, department) => {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ department: department || null })
-      .eq('id', user.id);
-
-    if (error) {
-      alert('Hiba: ' + error.message);
-      reportError({ page: 'Felhasználók kezelése', action: 'Részleg módosítása', error: error.message });
-      return;
+    try {
+      await callAdmin('/api/admin/users/update-department', {
+        userId: user.id,
+        department: department || null,
+      });
+      loadUsers();
+    } catch (err) {
+      alert('Hiba: ' + err.message);
+      reportError({ page: 'Felhasználók kezelése', action: 'Részleg módosítása', error: err.message });
     }
-
-    loadUsers();
   };
 
   if (loading) {

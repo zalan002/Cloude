@@ -176,8 +176,14 @@ export default function AdminSyncPage() {
       )
     );
 
+    // source_key is now mandatory and must be unique. For manual
+    // projects we use the user-provided name as the stable
+    // identifier — duplicates will be rejected by the DB.
+    const source_key = `manual:name_${name.toLowerCase()}`;
+
     const { error } = await supabase.from('minicrm_projects').insert({
       minicrm_id,
+      source_key,
       name,
       category_name: 'Manuális',
       source: 'manual',

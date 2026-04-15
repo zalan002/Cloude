@@ -105,12 +105,19 @@ export default function AddItemPage() {
       minicrm_id++;
     }
 
+    // source_key is mandatory and must be unique. Manual
+    // projects use their (lowercase) name as the stable
+    // identifier — re-adding the same name will be rejected.
+    const source_key = `manual:name_${name.toLowerCase()}`;
+
     const { error } = await supabase
       .from('minicrm_projects')
       .insert({
         name,
         status: 'active',
         minicrm_id,
+        source_key,
+        source: 'manual',
         category_name: 'Manuális',
       });
 
