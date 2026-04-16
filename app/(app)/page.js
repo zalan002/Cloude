@@ -146,11 +146,11 @@ export default async function DashboardPage() {
               >
                 <div className="flex-1 min-w-0">
                   <p className="font-montserrat font-semibold text-dark-text text-sm">
-                    {entry.minicrm_projects?.name || 'Ismeretlen projekt'}
+                    {entry.project_name_snapshot || entry.minicrm_projects?.name || 'Ismeretlen projekt'}
                   </p>
-                  {entry.tasks?.name && (
+                  {(entry.task_name_snapshot || entry.tasks?.name) && (
                     <p className="text-xs text-medium-blue mt-0.5">
-                      {entry.tasks.name}
+                      {entry.task_name_snapshot || entry.tasks.name}
                     </p>
                   )}
                   {entry.description && (

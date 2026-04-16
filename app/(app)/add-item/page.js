@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
+import { hashString } from '@/lib/projectHash';
 
 const TASK_CATEGORIES = [
   'EGYÉB FELADATOK',
@@ -84,25 +85,28 @@ export default function AddItemPage() {
     setProjectSaving(true);
     setMessage(null);
 
-    // Generate hash-based minicrm_id within INT4 range (max 2,147,483,647)
-    const baseHash = Math.abs(
-      Array.from(name.toLowerCase()).reduce(
-        (hash, char) => ((hash << 5) - hash + char.charCodeAt(0)) & 0x7fffffff,
-        0
-      )
-    );
+    // Generate hash-based minicrm_id using shared FNV-1a hash
+    let minicrm_id = hashString(name);
 
-    // Handle collisions: find an unused ID near the hash
+    // Handle collisions: deterministic resolution using hash with suffix
     const { data: existing } = await supabase
       .from('minicrm_projects')
       .select('minicrm_id')
-      .gte('minicrm_id', baseHash)
-      .lt('minicrm_id', baseHash + 1000);
+      .eq('minicrm_id', minicrm_id)
+      .maybeSingle();
 
-    const usedIds = new Set((existing || []).map((p) => p.minicrm_id));
-    let minicrm_id = baseHash;
-    while (usedIds.has(minicrm_id)) {
-      minicrm_id++;
+    if (existing) {
+      let attempts = 0;
+      while (attempts < 100) {
+        attempts++;
+        minicrm_id = hashString(name + '#collision_' + attempts);
+        const { data: check } = await supabase
+          .from('minicrm_projects')
+          .select('minicrm_id')
+          .eq('minicrm_id', minicrm_id)
+          .maybeSingle();
+        if (!check) break;
+      }
     }
 
     const { error } = await supabase

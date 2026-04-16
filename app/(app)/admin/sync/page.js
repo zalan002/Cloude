@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
+import { hashString } from '@/lib/projectHash';
+import { logActivity } from '@/lib/activityLog';
 
 const SYNC_SCHEDULES = [
   { value: '0 5 * * *', label: '05:00' },
@@ -161,6 +163,12 @@ export default function AdminSyncPage() {
       .from('minicrm_projects')
       .update({ status: newStatus })
       .eq('id', project.id);
+    logActivity({
+      event_type: 'admin.project_status_change',
+      target_table: 'minicrm_projects',
+      target_id: String(project.id),
+      details: { project_name: project.name, new_status: newStatus },
+    });
     loadProjects();
   };
 
@@ -169,12 +177,28 @@ export default function AdminSyncPage() {
     const name = newProjectName.trim();
     if (!name) return;
 
-    const minicrm_id = Math.abs(
-      Array.from(name.toLowerCase()).reduce(
-        (hash, char) => ((hash << 5) - hash + char.charCodeAt(0)) & 0x7fffffff,
-        0
-      )
-    );
+    let minicrm_id = hashString(name);
+
+    // Check for collision with existing minicrm_id values
+    const { data: existing } = await supabase
+      .from('minicrm_projects')
+      .select('minicrm_id')
+      .eq('minicrm_id', minicrm_id)
+      .maybeSingle();
+
+    if (existing) {
+      let attempts = 0;
+      while (attempts < 100) {
+        attempts++;
+        minicrm_id = hashString(name + '#collision_' + attempts);
+        const { data: check } = await supabase
+          .from('minicrm_projects')
+          .select('minicrm_id')
+          .eq('minicrm_id', minicrm_id)
+          .maybeSingle();
+        if (!check) break;
+      }
+    }
 
     const { error } = await supabase.from('minicrm_projects').insert({
       minicrm_id,
@@ -194,6 +218,11 @@ export default function AdminSyncPage() {
     setNewProjectName('');
     setShowAddForm(false);
     setMessage({ type: 'success', text: `"${name}" projekt sikeresen hozzáadva!` });
+    logActivity({
+      event_type: 'admin.project_manual_add',
+      target_table: 'minicrm_projects',
+      details: { project_name: name },
+    });
     loadProjects();
   };
 

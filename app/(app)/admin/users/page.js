@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
+import { logActivity } from '@/lib/activityLog';
 
 const DEPARTMENTS = [
   'Értékesítés',
@@ -87,6 +88,12 @@ export default function AdminUsersPage() {
       return;
     }
 
+    logActivity({
+      event_type: 'admin.role_change',
+      target_table: 'profiles',
+      target_id: user.id,
+      details: { user_name: user.full_name, old_role: user.role, new_role: newRole },
+    });
     loadUsers();
   };
 
@@ -108,6 +115,12 @@ export default function AdminUsersPage() {
       return;
     }
 
+    logActivity({
+      event_type: 'admin.user_status_change',
+      target_table: 'profiles',
+      target_id: user.id,
+      details: { user_name: user.full_name, new_is_active: newStatus },
+    });
     loadUsers();
   };
 
@@ -123,6 +136,12 @@ export default function AdminUsersPage() {
       return;
     }
 
+    logActivity({
+      event_type: 'admin.department_change',
+      target_table: 'profiles',
+      target_id: user.id,
+      details: { user_name: user.full_name, new_department: department || null },
+    });
     loadUsers();
   };
 
