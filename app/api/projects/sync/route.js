@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { sendErrorAlert } from '@/lib/email';
+import { hashString, toMiniCrmId } from '@/lib/projectHash';
 
 const CSV_URLS = {
   sales: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTkHbDkXhzaWeR2caj-WyW7F-9ZTgMKzB-acV0jV27LbzAVC-D0dEYjgwGURMkAi8i_PCrDYZrwNmDr/pub?gid=1984680240&single=true&output=csv',
@@ -173,33 +174,7 @@ async function fetchCSV(url) {
   return parseCSV(text);
 }
 
-// Generate a unique numeric ID from a string (FNV-1a hash, fits in INT4 range)
-function hashString(str) {
-  const s = str.trim().toLowerCase();
-  let h1 = 0x811c9dc5; // FNV offset basis
-  let h2 = 0x12345678;
-  for (let i = 0; i < s.length; i++) {
-    const c = s.charCodeAt(i);
-    h1 ^= c;
-    h1 = Math.imul(h1, 0x01000193); // FNV prime
-    h2 ^= c * (i + 1);
-    h2 = Math.imul(h2, 0x5bd1e995);
-  }
-  // Combine and keep within safe INT4 range (1,000,000 to 2,147,483,647)
-  const combined = Math.abs((h1 ^ h2) | 0);
-  return (combined % 2146483647) + 1000000;
-}
-
-// Convert a source_id (numeric or alphanumeric) to a stable numeric minicrm_id
-function toMiniCrmId(sourceId, name) {
-  if (sourceId) {
-    const parsed = parseInt(sourceId);
-    if (!isNaN(parsed) && parsed > 0) return parsed;
-    // Alphanumeric ID: hash it
-    return hashString(sourceId);
-  }
-  return hashString(name);
-}
+// hashString and toMiniCrmId are imported from @/lib/projectHash
 
 // Core sync logic - used by both manual trigger and cron
 export async function syncProjects(supabase) {
@@ -311,16 +286,26 @@ export async function syncProjects(supabase) {
   let collisions = 0;
   const now = new Date().toISOString();
 
+  // Sort deterministically before computing IDs to ensure stable
+  // collision resolution regardless of CSV row order
+  uniqueProjects.sort((a, b) => {
+    const keyA = a.source_id ? `id:${a.source_id}` : `name:${a.name.toLowerCase()}`;
+    const keyB = b.source_id ? `id:${b.source_id}` : `name:${b.name.toLowerCase()}`;
+    return keyA.localeCompare(keyB);
+  });
+
   // Pre-compute all minicrm_ids and resolve collisions before upserting
   const usedIds = new Set();
   const projectsWithIds = uniqueProjects.map((project) => {
+    const canonicalKey = project.source_id || project.name;
     let minicrm_id = toMiniCrmId(project.source_id, project.name);
 
-    // Resolve hash collisions by incrementing
+    // Deterministic collision resolution: hash with collision suffix
+    // instead of simple increment, so result doesn't depend on processing order
     let attempts = 0;
     while (usedIds.has(minicrm_id) && attempts < 1000) {
-      minicrm_id++;
       attempts++;
+      minicrm_id = hashString(canonicalKey + '#collision_' + attempts);
       collisions++;
     }
     usedIds.add(minicrm_id);
@@ -349,6 +334,26 @@ export async function syncProjects(supabase) {
     } else {
       synced++;
     }
+  }
+
+  // Log sync completion to activity_logs
+  try {
+    await supabase.from('activity_logs').insert({
+      event_type: 'sync.completed',
+      user_id: null,
+      user_email: null,
+      target_table: 'minicrm_projects',
+      details: {
+        synced,
+        errors,
+        total_found: uniqueProjects.length,
+        sales_count: salesProjects.length,
+        partner_count: partnerProjects.length,
+        hash_collisions: collisions,
+      },
+    });
+  } catch {
+    // Silent fail - logging should not break sync
   }
 
   return {

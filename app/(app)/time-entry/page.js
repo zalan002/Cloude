@@ -98,12 +98,47 @@ export default function TimeEntryPage() {
       const parsedProjectId = parseInt(projectId);
       const parsedMinutes = parseInt(minutes);
 
+      // Verify project still exists and hasn't changed since form was loaded
+      const { data: currentProject } = await supabase
+        .from('minicrm_projects')
+        .select('id, name')
+        .eq('id', parsedProjectId)
+        .single();
+
+      if (!currentProject) {
+        setError('A kiválasztott projekt már nem létezik. Kérjük, válasszon újat.');
+        setShowConfirm(false);
+        const { data: freshProjects } = await supabase
+          .from('minicrm_projects')
+          .select('*')
+          .eq('status', 'active')
+          .order('name');
+        setProjects(freshProjects || []);
+        setLoading(false);
+        return;
+      }
+
+      if (selectedProject && currentProject.name !== selectedProject.name) {
+        setError('A projekt adatai megváltoztak mentés közben. Kérjük, ellenőrizze és próbálja újra.');
+        setShowConfirm(false);
+        const { data: freshProjects } = await supabase
+          .from('minicrm_projects')
+          .select('*')
+          .eq('status', 'active')
+          .order('name');
+        setProjects(freshProjects || []);
+        setLoading(false);
+        return;
+      }
+
       const insertData = {
         user_id: user.id,
         project_id: parsedProjectId,
         entry_date: entryDate,
         hours: parsedMinutes / 60,
         description: description.trim() || null,
+        project_name_snapshot: currentProject.name,
+        task_name_snapshot: selectedTask?.name || null,
       };
 
       if (taskId) {

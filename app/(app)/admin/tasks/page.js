@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
+import { logActivity } from '@/lib/activityLog';
 
 const CATEGORIES = [
   'EGYÉB FELADATOK',
@@ -95,6 +96,11 @@ export default function AdminTasksPage() {
     setNewTaskCategory('');
     setShowAddForm(false);
     setMessage({ type: 'success', text: `"${name}" feladat sikeresen hozzáadva!` });
+    logActivity({
+      event_type: 'admin.task_add',
+      target_table: 'tasks',
+      details: { task_name: name, category: newTaskCategory || null },
+    });
     loadTasks();
   };
 
@@ -104,6 +110,12 @@ export default function AdminTasksPage() {
       .from('tasks')
       .update({ status: newStatus })
       .eq('id', task.id);
+    logActivity({
+      event_type: 'admin.task_status_change',
+      target_table: 'tasks',
+      target_id: String(task.id),
+      details: { task_name: task.name, new_status: newStatus },
+    });
     loadTasks();
   };
 
@@ -139,6 +151,12 @@ export default function AdminTasksPage() {
       return;
     }
     setMessage({ type: 'success', text: `"${task.name}" feladat sikeresen törölve!` });
+    logActivity({
+      event_type: 'admin.task_delete',
+      target_table: 'tasks',
+      target_id: String(task.id),
+      details: { task_name: task.name, category: task.category },
+    });
     loadTasks();
   };
 

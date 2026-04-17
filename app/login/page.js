@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { logActivity } from '@/lib/activityLog';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -28,6 +29,7 @@ export default function LoginPage() {
         return;
       }
 
+      logActivity({ event_type: 'user.login', details: { email } });
       router.push('/');
       router.refresh();
     } catch {
