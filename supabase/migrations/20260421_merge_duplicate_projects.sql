@@ -134,7 +134,7 @@ COMMIT;
 -- ============================================================
 
 -- 3a. No more active duplicates should exist
-SELECT name, count(*) AS cnt
+SELECT LOWER(TRIM(name)) AS project_name, count(*) AS cnt
 FROM minicrm_projects
 WHERE status = 'active'
 GROUP BY LOWER(TRIM(name))
