@@ -115,6 +115,7 @@ export default function AdminSyncPage() {
       }
 
       let details = `Sikeres szinkronizálás! ${data.synced} projekt szinkronizálva.\n` +
+        `Frissítve: ${data.updated ?? 0} | Újonnan létrehozva: ${data.inserted ?? 0}\n` +
         `Értékesítés: ${data.sales_count} db | Partnerek: ${data.partner_count} db\n` +
         `Duplikáció szűrve: ${data.duplicates_removed} db | Összesen: ${data.total_found} egyedi projekt`;
       if (data.errors > 0) details += `\nHibák: ${data.errors}`;
