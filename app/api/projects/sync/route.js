@@ -284,7 +284,27 @@ export async function syncProjects(supabase) {
   let synced = 0;
   let errors = 0;
   let collisions = 0;
+  let updated = 0;
+  let inserted = 0;
   const now = new Date().toISOString();
+
+  // Load all existing MiniCRM projects ONCE so we can match by name.
+  // This prevents duplicates when a project's source_id changes between syncs
+  // (e.g. CSV has source_id this time but not next time → new hash ID → new row).
+  const { data: existingProjects } = await supabase
+    .from('minicrm_projects')
+    .select('id, minicrm_id, name, source')
+    .in('source', ['minicrm_sales', 'minicrm_partner']);
+
+  const existingByName = new Map();
+  (existingProjects || []).forEach((p) => {
+    const key = p.name.trim().toLowerCase();
+    // If multiple exist (shouldn't happen after merge), keep the one with lowest id
+    const current = existingByName.get(key);
+    if (!current || p.id < current.id) {
+      existingByName.set(key, p);
+    }
+  });
 
   // Sort deterministically before computing IDs to ensure stable
   // collision resolution regardless of CSV row order
@@ -294,14 +314,24 @@ export async function syncProjects(supabase) {
     return keyA.localeCompare(keyB);
   });
 
-  // Pre-compute all minicrm_ids and resolve collisions before upserting
+  // Pre-compute minicrm_ids only for NEW projects (not already in DB by name).
+  // Existing projects keep their original minicrm_id so FK references stay stable.
   const usedIds = new Set();
-  const projectsWithIds = uniqueProjects.map((project) => {
+  (existingProjects || []).forEach((p) => usedIds.add(p.minicrm_id));
+
+  const projectsToProcess = uniqueProjects.map((project) => {
+    const nameKey = project.name.trim().toLowerCase();
+    const existing = existingByName.get(nameKey);
+
+    if (existing) {
+      // Will update existing row - keep its minicrm_id
+      return { ...project, minicrm_id: existing.minicrm_id, existing_id: existing.id };
+    }
+
+    // New project - compute a fresh minicrm_id with deterministic collision resolution
     const canonicalKey = project.source_id || project.name;
     let minicrm_id = toMiniCrmId(project.source_id, project.name);
 
-    // Deterministic collision resolution: hash with collision suffix
-    // instead of simple increment, so result doesn't depend on processing order
     let attempts = 0;
     while (usedIds.has(minicrm_id) && attempts < 1000) {
       attempts++;
@@ -310,12 +340,11 @@ export async function syncProjects(supabase) {
     }
     usedIds.add(minicrm_id);
 
-    return { ...project, minicrm_id };
+    return { ...project, minicrm_id, existing_id: null };
   });
 
-  for (const project of projectsWithIds) {
-    const upsertData = {
-      minicrm_id: project.minicrm_id,
+  for (const project of projectsToProcess) {
+    const commonData = {
       name: project.name,
       category_name: project.category || null,
       source: project.source,
@@ -324,15 +353,33 @@ export async function syncProjects(supabase) {
       last_synced_at: now,
     };
 
-    const { error: upsertError } = await supabase
-      .from('minicrm_projects')
-      .upsert(upsertData, { onConflict: 'minicrm_id' });
+    if (project.existing_id) {
+      // Update existing row by id - keeps minicrm_id stable
+      const { error: updateError } = await supabase
+        .from('minicrm_projects')
+        .update(commonData)
+        .eq('id', project.existing_id);
 
-    if (upsertError) {
-      console.error(`Upsert error for "${project.name}":`, upsertError.message);
-      errors++;
+      if (updateError) {
+        console.error(`Update error for "${project.name}":`, updateError.message);
+        errors++;
+      } else {
+        synced++;
+        updated++;
+      }
     } else {
-      synced++;
+      // Insert new row
+      const { error: insertError } = await supabase
+        .from('minicrm_projects')
+        .insert({ ...commonData, minicrm_id: project.minicrm_id });
+
+      if (insertError) {
+        console.error(`Insert error for "${project.name}":`, insertError.message);
+        errors++;
+      } else {
+        synced++;
+        inserted++;
+      }
     }
   }
 
@@ -345,6 +392,8 @@ export async function syncProjects(supabase) {
       target_table: 'minicrm_projects',
       details: {
         synced,
+        updated,
+        inserted,
         errors,
         total_found: uniqueProjects.length,
         sales_count: salesProjects.length,
@@ -359,6 +408,8 @@ export async function syncProjects(supabase) {
   return {
     success: true,
     synced,
+    updated,
+    inserted,
     errors,
     total_found: uniqueProjects.length,
     sales_count: salesProjects.length,
