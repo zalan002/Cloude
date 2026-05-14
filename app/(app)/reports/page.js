@@ -7,6 +7,7 @@ const TABS = [
   { id: 'monthly', label: 'Havi összesítő' },
   { id: 'projects', label: 'Projektek' },
   { id: 'tasks', label: 'Feladatok' },
+  { id: 'daily', label: 'Napi nézet' },
   { id: 'weekly', label: 'Heti nézet' },
 ];
 
@@ -87,6 +88,21 @@ function SubRow({ label, hours }) {
   );
 }
 
+function DailyEntryRow({ project, task, description, hours }) {
+  return (
+    <div className="flex items-start justify-between text-sm gap-4">
+      <div className="min-w-0">
+        <p className="font-montserrat font-semibold text-dark-text truncate">{project}</p>
+        {task && <p className="text-xs text-medium-blue mt-0.5 truncate">{task}</p>}
+        {description && <p className="text-xs text-mid-gray mt-0.5 truncate">{description}</p>}
+      </div>
+      <span className="font-montserrat font-semibold text-dark-text flex-shrink-0">
+        {formatTime(hours)}
+      </span>
+    </div>
+  );
+}
+
 export default function ReportsPage() {
   const supabase = createClient();
   const [activeTab, setActiveTab] = useState('monthly');
@@ -114,6 +130,13 @@ export default function ReportsPage() {
   const [taskDateFrom, setTaskDateFrom] = useState('');
   const [taskDateTo, setTaskDateTo] = useState('');
   const [expandedTasks, setExpandedTasks] = useState([]);
+
+  // Daily state
+  const [selectedDay, setSelectedDay] = useState(
+    () => new Date().toISOString().split('T')[0]
+  );
+  const [dailyData, setDailyData] = useState([]);
+  const [expandedDailyUsers, setExpandedDailyUsers] = useState([]);
 
   // Weekly state
   const [weeklyData, setWeeklyData] = useState([]);
@@ -313,6 +336,51 @@ export default function ReportsPage() {
     setExpandedTasks([]);
   }, [profile, taskUserFilter, taskDateFrom, taskDateTo]);
 
+  // Load daily data
+  const loadDaily = useCallback(async () => {
+    if (!profile) return;
+
+    let query = supabase
+      .from('time_entries')
+      .select('user_id, hours, description, project_name_snapshot, task_name_snapshot, profiles(full_name), minicrm_projects(name), tasks(name)')
+      .eq('entry_date', selectedDay);
+
+    if (profile.role !== 'admin') {
+      query = query.eq('user_id', profile.id);
+    }
+
+    const { data } = await query;
+
+    const userMap = {};
+    (data || []).forEach((entry) => {
+      const uid = entry.user_id;
+      if (!userMap[uid]) {
+        userMap[uid] = {
+          name: entry.profiles?.full_name || 'Ismeretlen',
+          hours: 0,
+          entries: [],
+        };
+      }
+      userMap[uid].hours += Number(entry.hours);
+      userMap[uid].entries.push({
+        project: entry.project_name_snapshot || entry.minicrm_projects?.name || 'Ismeretlen projekt',
+        task: entry.task_name_snapshot || entry.tasks?.name || '',
+        description: entry.description || '',
+        hours: Number(entry.hours),
+      });
+    });
+
+    const result = Object.values(userMap)
+      .map((u) => ({
+        ...u,
+        entries: u.entries.sort((a, b) => b.hours - a.hours),
+      }))
+      .sort((a, b) => b.hours - a.hours);
+
+    setDailyData(result);
+    setExpandedDailyUsers([]);
+  }, [profile, selectedDay]);
+
   // Load weekly data
   const loadWeekly = useCallback(async () => {
     if (!profile) return;
@@ -360,8 +428,9 @@ export default function ReportsPage() {
     if (activeTab === 'monthly') loadMonthly();
     if (activeTab === 'projects') loadProjects();
     if (activeTab === 'tasks') loadTasks();
+    if (activeTab === 'daily') loadDaily();
     if (activeTab === 'weekly') loadWeekly();
-  }, [activeTab, loadMonthly, loadProjects, loadTasks, loadWeekly]);
+  }, [activeTab, loadMonthly, loadProjects, loadTasks, loadDaily, loadWeekly]);
 
   const toggle = (list, setList, key) => {
     setList((prev) =>
@@ -383,6 +452,7 @@ export default function ReportsPage() {
   const maxMonthly = Math.max(...monthlyData.map((u) => u.hours), 1);
   const maxProject = Math.max(...projectData.map((p) => p.hours), 1);
   const maxTask = Math.max(...taskData.map((t) => t.hours), 1);
+  const maxDaily = Math.max(...dailyData.map((u) => u.hours), 1);
   const maxWeekly = Math.max(...weeklyData.map((d) => d.hours), 1);
 
   return (
@@ -618,6 +688,87 @@ export default function ReportsPage() {
                 <span className="font-montserrat font-bold text-deep-blue">Összesen</span>
                 <span className="font-montserrat font-bold text-deep-blue">
                   {formatTime(taskData.reduce((sum, t) => sum + t.hours, 0))}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Daily tab */}
+      {activeTab === 'daily' && (
+        <div className="card">
+          <div className="flex flex-wrap items-center gap-3 mb-6">
+            <button
+              type="button"
+              onClick={() => {
+                const d = new Date(selectedDay + 'T00:00:00');
+                d.setDate(d.getDate() - 1);
+                setSelectedDay(d.toISOString().split('T')[0]);
+              }}
+              className="px-3 py-2 rounded-md border border-gray-200 text-mid-gray hover:text-deep-blue hover:bg-gray-50 transition-all"
+              title="Előző nap"
+            >
+              ‹
+            </button>
+            <input
+              type="date"
+              value={selectedDay}
+              onChange={(e) => setSelectedDay(e.target.value)}
+              className="input-field !w-auto"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const d = new Date(selectedDay + 'T00:00:00');
+                d.setDate(d.getDate() + 1);
+                setSelectedDay(d.toISOString().split('T')[0]);
+              }}
+              className="px-3 py-2 rounded-md border border-gray-200 text-mid-gray hover:text-deep-blue hover:bg-gray-50 transition-all"
+              title="Következő nap"
+            >
+              ›
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedDay(new Date().toISOString().split('T')[0])}
+              className="text-xs text-medium-blue hover:text-deep-blue font-semibold py-2"
+            >
+              Ma
+            </button>
+          </div>
+
+          {dailyData.length === 0 ? (
+            <p className="text-center text-mid-gray py-8">Nincs adat a kiválasztott napra.</p>
+          ) : (
+            <div className="space-y-3">
+              {dailyData.map((user, i) => (
+                <BarRow
+                  key={i}
+                  label={user.name}
+                  hours={user.hours}
+                  maxHours={maxDaily}
+                  onClick={() => toggle(expandedDailyUsers, setExpandedDailyUsers, user.name)}
+                  expanded={expandedDailyUsers.includes(user.name)}
+                >
+                  {user.entries.length > 0 && (
+                    <p className="text-xs font-montserrat font-semibold text-mid-gray uppercase tracking-wider mb-1">Bejegyzések</p>
+                  )}
+                  {user.entries.map((e, j) => (
+                    <DailyEntryRow
+                      key={j}
+                      project={e.project}
+                      task={e.task}
+                      description={e.description}
+                      hours={e.hours}
+                    />
+                  ))}
+                </BarRow>
+              ))}
+              <div className="border-t border-gray-200 pt-3 mt-4 flex items-center justify-between">
+                <span className="font-montserrat font-bold text-deep-blue">Napi összesen</span>
+                <span className="font-montserrat font-bold text-deep-blue">
+                  {formatTime(dailyData.reduce((sum, u) => sum + u.hours, 0))}
                 </span>
               </div>
             </div>
