@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import { hashString } from '@/lib/projectHash';
 import { logActivity } from '@/lib/activityLog';
+import { fetchAll } from '@/lib/supabase/fetchAll';
 
 const SYNC_SCHEDULES = [
   { value: '0 5 * * *', label: '05:00' },
@@ -67,11 +68,14 @@ export default function AdminSyncPage() {
   }, []);
 
   const loadProjects = useCallback(async () => {
-    const { data } = await supabase
-      .from('minicrm_projects')
-      .select('*')
-      .order('name');
-    setProjects(data || []);
+    const { data } = await fetchAll(() =>
+      supabase
+        .from('minicrm_projects')
+        .select('*')
+        .order('name')
+        .order('id')
+    );
+    setProjects(data);
   }, []);
 
   const loadSettings = useCallback(async () => {

@@ -6,6 +6,18 @@ import { createClient } from '@/lib/supabase/client';
 import ProjectSelector from '@/components/ProjectSelector';
 import TaskSelector from '@/components/TaskSelector';
 import { reportError } from '@/lib/reportError';
+import { fetchAll } from '@/lib/supabase/fetchAll';
+
+function fetchActiveProjects(supabase) {
+  return fetchAll(() =>
+    supabase
+      .from('minicrm_projects')
+      .select('*')
+      .eq('status', 'active')
+      .order('name')
+      .order('id')
+  );
+}
 
 export default function TimeEntryPage() {
   const router = useRouter();
@@ -29,11 +41,7 @@ export default function TimeEntryPage() {
   useEffect(() => {
     async function loadData() {
       const [projectsRes, tasksRes] = await Promise.all([
-        supabase
-          .from('minicrm_projects')
-          .select('*')
-          .eq('status', 'active')
-          .order('name'),
+        fetchActiveProjects(supabase),
         supabase
           .from('tasks')
           .select('*')
@@ -108,12 +116,8 @@ export default function TimeEntryPage() {
       if (!currentProject) {
         setError('A kiválasztott projekt már nem létezik. Kérjük, válasszon újat.');
         setShowConfirm(false);
-        const { data: freshProjects } = await supabase
-          .from('minicrm_projects')
-          .select('*')
-          .eq('status', 'active')
-          .order('name');
-        setProjects(freshProjects || []);
+        const { data: freshProjects } = await fetchActiveProjects(supabase);
+        setProjects(freshProjects);
         setLoading(false);
         return;
       }
@@ -121,12 +125,8 @@ export default function TimeEntryPage() {
       if (selectedProject && currentProject.name !== selectedProject.name) {
         setError('A projekt adatai megváltoztak mentés közben. Kérjük, ellenőrizze és próbálja újra.');
         setShowConfirm(false);
-        const { data: freshProjects } = await supabase
-          .from('minicrm_projects')
-          .select('*')
-          .eq('status', 'active')
-          .order('name');
-        setProjects(freshProjects || []);
+        const { data: freshProjects } = await fetchActiveProjects(supabase);
+        setProjects(freshProjects);
         setLoading(false);
         return;
       }
