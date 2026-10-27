@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { sendErrorAlert } from '@/lib/email';
 import { hashString, toMiniCrmId } from '@/lib/projectHash';
+import { fetchAll } from '@/lib/supabase/fetchAll';
 
 const CSV_URLS = {
   sales: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTkHbDkXhzaWeR2caj-WyW7F-9ZTgMKzB-acV0jV27LbzAVC-D0dEYjgwGURMkAi8i_PCrDYZrwNmDr/pub?gid=1984680240&single=true&output=csv',
@@ -291,10 +292,18 @@ export async function syncProjects(supabase) {
   // Load all existing MiniCRM projects ONCE so we can match by name.
   // This prevents duplicates when a project's source_id changes between syncs
   // (e.g. CSV has source_id this time but not next time → new hash ID → new row).
-  const { data: existingProjects } = await supabase
-    .from('minicrm_projects')
-    .select('id, minicrm_id, name, source')
-    .in('source', ['minicrm_sales', 'minicrm_partner']);
+  const { data: existingProjects, error: existingError } = await fetchAll(() =>
+    supabase
+      .from('minicrm_projects')
+      .select('id, minicrm_id, name, source')
+      .in('source', ['minicrm_sales', 'minicrm_partner'])
+      .order('id')
+  );
+
+  // Without the full list every existing project would look new and be inserted again
+  if (existingError) {
+    throw new Error(`Meglévő projektek betöltése sikertelen: ${existingError.message}`);
+  }
 
   const existingByName = new Map();
   (existingProjects || []).forEach((p) => {

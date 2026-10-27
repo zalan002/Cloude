@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import { hashString } from '@/lib/projectHash';
+import { fetchAll } from '@/lib/supabase/fetchAll';
 
 const TASK_CATEGORIES = [
   'EGYÉB FELADATOK',
@@ -52,12 +53,15 @@ export default function AddItemPage() {
   }, []);
 
   const loadProjects = useCallback(async () => {
-    const { data } = await supabase
-      .from('minicrm_projects')
-      .select('id, name, status')
-      .eq('status', 'active')
-      .order('name');
-    setProjects(data || []);
+    const { data } = await fetchAll(() =>
+      supabase
+        .from('minicrm_projects')
+        .select('id, name, status')
+        .eq('status', 'active')
+        .order('name')
+        .order('id')
+    );
+    setProjects(data);
   }, []);
 
   const loadTasks = useCallback(async () => {

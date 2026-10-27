@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { fetchAll } from '@/lib/supabase/fetchAll';
 
 const TABS = [
   { id: 'monthly', label: 'Havi összesítő' },
@@ -157,20 +158,23 @@ export default function ReportsPage() {
       .toISOString()
       .split('T')[0];
 
-    let query = supabase
-      .from('time_entries')
-      .select('user_id, hours, project_id, task_id, profiles(full_name), minicrm_projects(name), tasks(name)')
-      .gte('entry_date', startDate)
-      .lte('entry_date', endDate);
+    const { data } = await fetchAll(() => {
+      let query = supabase
+        .from('time_entries')
+        .select('user_id, hours, project_id, task_id, profiles(full_name), minicrm_projects(name), tasks(name)')
+        .gte('entry_date', startDate)
+        .lte('entry_date', endDate)
+        .order('id');
 
-    if (profile.role !== 'admin') {
-      query = query.eq('user_id', profile.id);
-    }
+      if (profile.role !== 'admin') {
+        query = query.eq('user_id', profile.id);
+      }
 
-    const { data } = await query;
+      return query;
+    });
 
     const userMap = {};
-    (data || []).forEach((entry) => {
+    data.forEach((entry) => {
       const uid = entry.user_id;
       if (!userMap[uid]) {
         userMap[uid] = {
@@ -210,23 +214,26 @@ export default function ReportsPage() {
   const loadProjects = useCallback(async () => {
     if (!profile) return;
 
-    let query = supabase
-      .from('time_entries')
-      .select('project_id, hours, user_id, task_id, minicrm_projects(name), profiles(full_name), tasks(name)');
+    const { data } = await fetchAll(() => {
+      let query = supabase
+        .from('time_entries')
+        .select('project_id, hours, user_id, task_id, minicrm_projects(name), profiles(full_name), tasks(name)')
+        .order('id');
 
-    if (profile.role !== 'admin') {
-      query = query.eq('user_id', profile.id);
-    } else if (projectUserFilter !== 'all') {
-      query = query.eq('user_id', projectUserFilter);
-    }
+      if (profile.role !== 'admin') {
+        query = query.eq('user_id', profile.id);
+      } else if (projectUserFilter !== 'all') {
+        query = query.eq('user_id', projectUserFilter);
+      }
 
-    if (projectDateFrom) query = query.gte('entry_date', projectDateFrom);
-    if (projectDateTo) query = query.lte('entry_date', projectDateTo);
+      if (projectDateFrom) query = query.gte('entry_date', projectDateFrom);
+      if (projectDateTo) query = query.lte('entry_date', projectDateTo);
 
-    const { data } = await query;
+      return query;
+    });
 
     const projectMap = {};
-    (data || []).forEach((entry) => {
+    data.forEach((entry) => {
       const pid = entry.project_id;
       if (!projectMap[pid]) {
         projectMap[pid] = {
@@ -263,23 +270,26 @@ export default function ReportsPage() {
   const loadTasks = useCallback(async () => {
     if (!profile) return;
 
-    let query = supabase
-      .from('time_entries')
-      .select('task_id, hours, user_id, project_id, tasks(name), profiles(full_name), minicrm_projects(name)');
+    const { data } = await fetchAll(() => {
+      let query = supabase
+        .from('time_entries')
+        .select('task_id, hours, user_id, project_id, tasks(name), profiles(full_name), minicrm_projects(name)')
+        .order('id');
 
-    if (profile.role !== 'admin') {
-      query = query.eq('user_id', profile.id);
-    } else if (taskUserFilter !== 'all') {
-      query = query.eq('user_id', taskUserFilter);
-    }
+      if (profile.role !== 'admin') {
+        query = query.eq('user_id', profile.id);
+      } else if (taskUserFilter !== 'all') {
+        query = query.eq('user_id', taskUserFilter);
+      }
 
-    if (taskDateFrom) query = query.gte('entry_date', taskDateFrom);
-    if (taskDateTo) query = query.lte('entry_date', taskDateTo);
+      if (taskDateFrom) query = query.gte('entry_date', taskDateFrom);
+      if (taskDateTo) query = query.lte('entry_date', taskDateTo);
 
-    const { data } = await query;
+      return query;
+    });
 
     const taskMap = {};
-    (data || []).forEach((entry) => {
+    data.forEach((entry) => {
       const taskName = entry.tasks?.name || 'Nincs feladat';
       const key = taskName;
       if (!taskMap[key]) {
@@ -323,20 +333,23 @@ export default function ReportsPage() {
       days.push(d.toISOString().split('T')[0]);
     }
 
-    let query = supabase
-      .from('time_entries')
-      .select('entry_date, hours')
-      .gte('entry_date', days[0])
-      .lte('entry_date', days[days.length - 1]);
+    const { data } = await fetchAll(() => {
+      let query = supabase
+        .from('time_entries')
+        .select('entry_date, hours')
+        .gte('entry_date', days[0])
+        .lte('entry_date', days[days.length - 1])
+        .order('id');
 
-    if (profile.role !== 'admin') {
-      query = query.eq('user_id', profile.id);
-    }
+      if (profile.role !== 'admin') {
+        query = query.eq('user_id', profile.id);
+      }
 
-    const { data } = await query;
+      return query;
+    });
 
     const dayMap = {};
-    (data || []).forEach((entry) => {
+    data.forEach((entry) => {
       if (!dayMap[entry.entry_date]) dayMap[entry.entry_date] = 0;
       dayMap[entry.entry_date] += Number(entry.hours);
     });

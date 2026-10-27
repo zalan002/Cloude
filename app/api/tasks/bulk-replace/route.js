@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { fetchAll } from '@/lib/supabase/fetchAll';
 
 export async function POST(request) {
   try {
@@ -40,12 +41,22 @@ export async function POST(request) {
     // Check which tasks are referenced by time entries
     let referencedIds = [];
     if (existingIds.length > 0) {
-      const { data: usedTasks } = await supabase
-        .from('time_entries')
-        .select('task_id')
-        .in('task_id', existingIds);
+      const { data: usedTasks, error: usedError } = await fetchAll(() =>
+        supabase
+          .from('time_entries')
+          .select('task_id')
+          .in('task_id', existingIds)
+          .order('id')
+      );
 
-      referencedIds = [...new Set((usedTasks || []).map((e) => e.task_id))];
+      if (usedError) {
+        return NextResponse.json(
+          { error: 'Hiba a feladathivatkozások lekérdezésekor: ' + usedError.message },
+          { status: 500 }
+        );
+      }
+
+      referencedIds = [...new Set(usedTasks.map((e) => e.task_id))];
     }
 
     const deletableIds = existingIds.filter((id) => !referencedIds.includes(id));
